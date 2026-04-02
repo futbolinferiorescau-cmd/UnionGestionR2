@@ -5,62 +5,27 @@ export default function BottomNav() {
   const location = useLocation();
 
   const items = [
+    { label: "Jugadores", path: "/gestion", icon: ( <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="5" r="3" /><path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6" /></svg> ) },
+    { label: "Asistencia", path: "/gestion/asistencias", icon: ( <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="1" y="3" width="14" height="11" rx="1" /><path d="M5 3V1M11 3V1M1 7h14" /></svg> ) },
+    { label: "Convocat.", path: "/gestion/convocatorias", icon: ( <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="6" /><path d="M5 8h6M8 5v6" /></svg> ) },
     {
-      label: "Jugadores",
-      path: "/gestion",
+      label: "Planif.",
+      path: "/gestion/planificacion",
       icon: (
         <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <circle cx="8" cy="5" r="3" />
-          <path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6" />
+          <path d="M3 2h10v12H3z" /><path d="M5 5h6M5 8h6M5 11h4" />
         </svg>
       ),
     },
-    {
-      label: "Asistencia",
-      path: "/gestion/asistencias",
-      icon: (
-        <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <rect x="1" y="3" width="14" height="11" rx="1" />
-          <path d="M5 3V1M11 3V1M1 7h14" />
-        </svg>
-      ),
-    },
-    {
-      label: "Convocat.",
-      path: "/gestion/convocatorias",
-      icon: (
-        <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <circle cx="8" cy="8" r="6" />
-          <path d="M5 8h6M8 5v6" />
-        </svg>
-      ),
-    },
-    {
-      label: "Tesorería",
-      path: "/subcomision",
-      icon: (
-        <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <rect x="1" y="4" width="14" height="10" rx="1" />
-          <path d="M5 4V2h6v2" />
-        </svg>
-      ),
-    },
-    {
-      label: "Cobranzas",
-      path: "/cobranzas",
-      icon: (
-        <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <circle cx="8" cy="8" r="6" />
-          <path d="M8 5v6M6 7h3.5a1.5 1.5 0 010 3H6" />
-        </svg>
-      ),
-    },
+    { label: "Tesorería", path: "/subcomision", icon: ( <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="1" y="4" width="14" height="10" rx="1" /><path d="M5 4V2h6v2" /></svg> ) },
+    { label: "Cobranzas", path: "/cobranzas", icon: ( <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="6" /><path d="M8 5v6M6 7h3.5a1.5 1.5 0 010 3H6" /></svg> ) },
   ];
 
   return (
     <nav style={{
       position: "fixed",
-      bottom: 0, left: 0, right: 0,
+      bottom: 0,
+      right: 0,
       background: "#1a1a1a",
       borderTop: "1px solid #2e2e2e",
       display: "flex",
@@ -86,13 +51,13 @@ export default function BottomNav() {
             flexDirection: "column",
             alignItems: "center",
             gap: "4px",
-            padding: "6px 12px",
+            padding: "6px 8px",
             color: location.pathname === item.path ? "#fff" : "#555",
-            minWidth: "60px",
+            minWidth: "55px",
           }}
         >
           {item.icon}
-          <span style={{ fontSize: "10px", whiteSpace: "nowrap" }}>{item.label}</span>
+          <span style={{ fontSize: "9px", whiteSpace: "nowrap" }}>{item.label}</span>
         </button>
       ))}
     </nav>
