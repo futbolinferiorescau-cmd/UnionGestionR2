@@ -58,6 +58,7 @@ export default function PlacaConvocatoria({ categoria, rival, escudoRival, canch
     pdf.save(`Convocatoria_${categoriaCorta}_${rival}.pdf`);
   };
 
+  // --- VOLVEMOS A 6 POR FILA ---
   const filas = [];
   for (let i = 0; i < jugadoresCitados.length; i += 6) {
     filas.push(jugadoresCitados.slice(i, i + 6));
@@ -91,34 +92,58 @@ export default function PlacaConvocatoria({ categoria, rival, escudoRival, canch
 
             <div style={{ position: "relative", zIndex: 10, display: "flex", width: "100%", height: "100%" }}>
               
-              <div style={{ width: "300px", padding: "30px 25px", display: "flex", flexDirection: "column", justifyContent: "space-between", flexShrink: 0 }}>
+              <div style={{ width: "270px", padding: "25px", display: "flex", flexDirection: "column", justifyContent: "space-between", flexShrink: 0 }}>
                 <div>
-                  <p style={{ margin: 0, fontSize: "13px", fontWeight: 300, letterSpacing: "1px", color: "#fff" }}>CONVOCATORIA:</p>
-                  <h1 style={{ margin: "0 0 12px 0", fontSize: "30px", fontWeight: 900, color: "#fff" }}>{categoriaCorta}</h1>
-                  {images.union && <img src={images.union} style={{ width: "90px", marginBottom: "14px" }} />}
-                  <h2 style={{ fontSize: "20px", margin: "0 0 8px 0", color: "#fff" }}>Vs. {rival}</h2>
-                  {images.rival && <img src={images.rival} style={{ height: "100px", width: "auto", objectFit: "contain", marginBottom: "12px" }} />}
-                  <p style={{ fontSize: "13px", color: "#ccc", margin: "4px 0" }}>{fecha} - {hora} HS</p>
-                  <p style={{ fontSize: "13px", color: "#ccc", margin: "4px 0" }}>Cancha: {cancha}</p>
+                  <p style={{ margin: 0, fontSize: "11px", fontWeight: 300, letterSpacing: "1px", color: "#fff" }}>CONVOCATORIA:</p>
+                  <h1 style={{ margin: "0 0 10px 0", fontSize: "28px", fontWeight: 900, color: "#fff" }}>{categoriaCorta}</h1>
+                  {images.union && <img src={images.union} style={{ width: "80px", marginBottom: "12px" }} />}
+                  <h2 style={{ fontSize: "18px", margin: "0 0 6px 0", color: "#fff" }}>Vs. {rival}</h2>
+                  {images.rival && <img src={images.rival} style={{ height: "80px", width: "auto", objectFit: "contain", marginBottom: "10px" }} />}
+                  <p style={{ fontSize: "12px", color: "#ccc", margin: "3px 0" }}>{fecha} - {hora} HS</p>
+                  <p style={{ fontSize: "12px", color: "#ccc", margin: "3px 0" }}>Cancha: {cancha}</p>
                 </div>
-                {observaciones && <p style={{ fontSize: "18px", color: "#ccc", fontStyle: "normal" }}>{observaciones}</p>}
+                {observaciones && (
+                  <div style={{ background: "rgba(255,255,255,0.1)", padding: "8px", borderRadius: "6px" }}>
+                    <p style={{ fontSize: "14px", color: "#fff", margin: 0, fontStyle: "italic" }}>{observaciones}</p>
+                  </div>
+                )}
               </div>
 
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: "20px", paddingRight: "30px", paddingLeft: "10px", overflow: "hidden"  }}>
+              {/* GRILLA DE 6 JUGADORES */}
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: "20px", paddingRight: "20px", overflow: "hidden" }}>
                 {filas.map((fila, i) => (
-                  <div key={i} style={{ display: "flex", justifyContent: "center", gap: "18px" }}>
+                  <div key={i} style={{ display: "flex", justifyContent: "center", gap: "12px" }}>
                     {fila.map(j => (
-                      <div key={j.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "80px" }}>
-                        <div style={{ position: "relative", width: "62px", height: "62px", borderRadius: "50%", overflow: "hidden", border: "2px solid rgba(255,255,255,0.8)", background: "#222", flexShrink: 0 }}>
+                      <div key={j.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "90px" }}>
+                        <div style={{ width: "60px", height: "60px", borderRadius: "50%", overflow: "hidden", border: "2px solid #fff", background: "#222", flexShrink: 0, marginBottom: "6px" }}>
                           {images.pibes[j.id] ? (
                             <img src={images.pibes[j.id]} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                           ) : (
-                            <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#888", fontSize: "20px" }}>?</div>
+                            <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#888", fontSize: "18px" }}>👤</div>
                           )}
                         </div>
-                        <p style={{ fontSize: "10px", marginTop: "6px", fontWeight: "bold", textAlign: "center", textTransform: "uppercase", color: "#fff", wordBreak: "break-word", maxWidth: "80px" }}>
-                          {j.APELLIDO}
-                        </p>
+                        
+                        <div style={{ textAlign: "center", width: "100%" }}>
+                          <p style={{ 
+                            fontSize: "11px", 
+                            fontWeight: "900", 
+                            color: "#fff", 
+                            textTransform: "uppercase",
+                            margin: 0,
+                            lineHeight: "1.1"
+                          }}>
+                            {j.APELLIDO}
+                          </p>
+                          <p style={{ 
+                            fontSize: "8.5px", 
+                            fontWeight: "400", 
+                            color: "rgba(255,255,255,0.7)", 
+                            textTransform: "capitalize",
+                            margin: "1px 0 0 0"
+                          }}>
+                            {j.NOMBRE.toLowerCase()}
+                          </p>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -131,7 +156,7 @@ export default function PlacaConvocatoria({ categoria, rival, escudoRival, canch
             onClick={descargarPDF}
             style={{ width: "100%", padding: "18px", marginTop: "20px", background: "white", color: "black", border: "none", borderRadius: "8px", fontWeight: "bold", fontSize: "16px", cursor: "pointer" }}
           >
-            DESCARGAR PDF
+            GENERAR PLACA DE CONVOCATORIA
           </button>
         </div>
       )}

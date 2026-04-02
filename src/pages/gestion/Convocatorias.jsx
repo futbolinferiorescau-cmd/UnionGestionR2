@@ -21,9 +21,7 @@ const CATEGORIAS = [
   { label: "2009/2008 - Cuarta", años: [2009, 2008] },
 ];
 
-const HORAS = Array.from({ length: 17 }, (_, i) =>
-  (i + 7).toString().padStart(2, "0")
-);
+const HORAS = Array.from({ length: 17 }, (_, i) => (i + 7).toString().padStart(2, "0"));
 const MINUTOS = ["00", "15", "30", "45"];
 
 export default function Convocatorias() {
@@ -49,10 +47,12 @@ export default function Convocatorias() {
 
   useEffect(() => {
     const fetchRivales = async () => {
-      const snap = await getDocs(collection(db, "rivales"));
-      const lista = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-      lista.sort((a, b) => a.nombre.localeCompare(b.nombre));
-      setRivales(lista);
+      try {
+        const snap = await getDocs(collection(db, "rivales"));
+        const lista = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        lista.sort((a, b) => a.nombre.localeCompare(b.nombre));
+        setRivales(lista);
+      } catch { /* Error silencioso */ }
     };
     fetchRivales();
   }, []);
@@ -60,18 +60,26 @@ export default function Convocatorias() {
   useEffect(() => {
     if (!categoriaSeleccionada) return;
     const fetchJugadores = async () => {
-      const snap = await getDocs(collection(db, "JUGADORES"));
-      const lista = snap.docs
-        .map((doc) => ({ id: doc.id, ...doc.data() }))
-        .filter((j) => {
-          const año = parseInt(j["FECHA NACIMIENTO"].split("/")[2]);
-          return categoriaSeleccionada.años.includes(año);
-        })
-        .sort((a, b) => a.APELLIDO.localeCompare(b.APELLIDO));
-      setJugadores(lista);
-      const inicial = {};
-      lista.forEach((j) => { inicial[j.id] = false; });
-      setCitados(inicial);
+      try {
+        const snap = await getDocs(collection(db, "JUGADORES"));
+        const lista = snap.docs
+          .map((doc) => ({ id: doc.id, ...doc.data() }))
+          .filter((j) => {
+            // Filtro híbrido: Primero buscamos por campo CATEGORIA, sino por AÑO
+            if (j.CATEGORIA && j.CATEGORIA === categoriaSeleccionada.label) return true;
+            if (j["FECHA NACIMIENTO"]) {
+               const año = parseInt(j["FECHA NACIMIENTO"].split("/")[2]);
+               return categoriaSeleccionada.años.includes(año);
+            }
+            return false;
+          })
+          .sort((a, b) => a.APELLIDO.localeCompare(b.APELLIDO));
+        
+        setJugadores(lista);
+        const inicial = {};
+        lista.forEach((j) => { inicial[j.id] = false; });
+        setCitados(inicial);
+      } catch { /* Error silencioso */ }
     };
     fetchJugadores();
   }, [categoriaSeleccionada]);
@@ -87,95 +95,52 @@ export default function Convocatorias() {
             const url = await getDownloadURL(ref(storage, `fotos_jugadores/${j.id}${ext}`));
             nuevasFotos[j.id] = url;
             break;
-          } catch {
-            continue;
-          }
+          } catch { continue; }
         }
       }
       setFotos(nuevasFotos);
     };
     cargarFotos();
-  }, [jugadores]);
+  }, [jugadores, storage]); // Agregamos storage a las dependencias
 
   const totalCitados = Object.values(citados).filter(Boolean).length;
 
   const inputStyle = {
-    width: "100%",
-    padding: "14px",
-    background: "#1e1e1e",
-    border: "1px solid #2e2e2e",
-    borderRadius: "12px",
-    color: "#fff",
-    fontSize: "15px",
-    colorScheme: "dark",
-    boxSizing: "border-box",
+    width: "100%", padding: "14px", background: "#1e1e1e", border: "1px solid #2e2e2e",
+    borderRadius: "12px", color: "#fff", fontSize: "15px", colorScheme: "dark", boxSizing: "border-box",
   };
 
-  const pageStyle = {
-    background: "#111",
-    minHeight: "100vh",
-    paddingBottom: "100px",
-  };
+  const pageStyle = { background: "#111", minHeight: "100vh", paddingBottom: "100px" };
 
   const botonVolver = (accion) => (
-    <button
-      onClick={accion}
-      style={{
-        background: "#1e1e1e",
-        border: "1px solid #2e2e2e",
-        borderRadius: "10px",
-        color: "#fff",
-        fontSize: "14px",
-        padding: "8px 16px",
-        marginBottom: "20px",
-        cursor: "pointer",
-      }}
-    >
+    <button onClick={accion} style={{ background: "#1e1e1e", border: "1px solid #2e2e2e", borderRadius: "10px", color: "#fff", fontSize: "14px", padding: "8px 16px", marginBottom: "20px", cursor: "pointer" }}>
       ← Volver
     </button>
   );
 
+  // --- PANTALLA CATEGORIAS ---
   if (pantalla === "categorias") {
     return (
       <div style={pageStyle}>
         <Navbar />
         <div style={{ padding: "24px 16px" }}>
-          <button
-            onClick={() => window.history.back()}
-            style={{ background: "#1e1e1e", border: "1px solid #2e2e2e", borderRadius: "10px", color: "#fff", fontSize: "14px", padding: "8px 16px", marginBottom: "20px", cursor: "pointer" }}
-          >
+          <button onClick={() => window.history.back()} style={{ background: "#1e1e1e", border: "1px solid #2e2e2e", borderRadius: "10px", color: "#fff", fontSize: "14px", padding: "8px 16px", marginBottom: "20px", cursor: "pointer" }}>
             ← Atrás
           </button>
-          <h1 style={{ fontSize: "26px", fontWeight: 700, marginBottom: "24px", color: "#fff", textTransform: "uppercase" }}>
-            Seleccioná Categoría
-          </h1>
-          <div style={{ marginBottom: "16px" }}>
-            <p style={{ color: "#666", fontSize: "12px", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "1px" }}>
-              Infantiles
-            </p>
+          <h1 style={{ fontSize: "26px", fontWeight: 700, marginBottom: "24px", color: "#fff", textTransform: "uppercase" }}>Seleccioná Categoría</h1>
+          <div>
+            <p style={{ color: "#666", fontSize: "12px", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "1px" }}>Infantiles</p>
             {CATEGORIAS.slice(0, 7).map((cat) => (
-              <button
-                key={cat.label}
-                onClick={() => { setCategoriaSeleccionada(cat); setPantalla("configurar"); }}
-                style={{ width: "100%", padding: "18px 16px", background: "#1e1e1e", border: "1px solid #2e2e2e", borderRadius: "12px", color: "#fff", fontSize: "15px", textAlign: "left", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}
-              >
-                {cat.label}
-                <span style={{ color: "#555" }}>›</span>
+              <button key={cat.label} onClick={() => { setCategoriaSeleccionada(cat); setPantalla("configurar"); }} style={{ width: "100%", padding: "18px 16px", background: "#1e1e1e", border: "1px solid #2e2e2e", borderRadius: "12px", color: "#fff", fontSize: "15px", textAlign: "left", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                {cat.label} <span style={{ color: "#555" }}>›</span>
               </button>
             ))}
           </div>
-          <div>
-            <p style={{ color: "#666", fontSize: "12px", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "1px" }}>
-              Juveniles
-            </p>
+          <div style={{ marginTop: "16px" }}>
+            <p style={{ color: "#666", fontSize: "12px", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "1px" }}>Juveniles</p>
             {CATEGORIAS.slice(7).map((cat) => (
-              <button
-                key={cat.label}
-                onClick={() => { setCategoriaSeleccionada(cat); setPantalla("configurar"); }}
-                style={{ width: "100%", padding: "18px 16px", background: "#1e1e1e", border: "1px solid #2e2e2e", borderRadius: "12px", color: "#fff", fontSize: "15px", textAlign: "left", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}
-              >
-                {cat.label}
-                <span style={{ color: "#555" }}>›</span>
+              <button key={cat.label} onClick={() => { setCategoriaSeleccionada(cat); setPantalla("configurar"); }} style={{ width: "100%", padding: "18px 16px", background: "#1e1e1e", border: "1px solid #2e2e2e", borderRadius: "12px", color: "#fff", fontSize: "15px", textAlign: "left", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                {cat.label} <span style={{ color: "#555" }}>›</span>
               </button>
             ))}
           </div>
@@ -184,203 +149,103 @@ export default function Convocatorias() {
     );
   }
 
+  // --- PANTALLA CONFIGURAR ---
   if (pantalla === "configurar") {
     return (
       <div style={pageStyle}>
         <Navbar />
         <div style={{ padding: "24px 16px" }}>
           {botonVolver(() => setPantalla("categorias"))}
-
-          <h1 style={{ fontSize: "20px", fontWeight: 700, textTransform: "uppercase", color: "#fff", marginBottom: "24px" }}>
-            Configurar Partido
-          </h1>
-
+          <h1 style={{ fontSize: "20px", fontWeight: 700, textTransform: "uppercase", color: "#fff", marginBottom: "24px" }}>Configurar Partido</h1>
+          
           <p style={{ color: "#888", fontSize: "13px", marginBottom: "6px" }}>Rival del partido</p>
-          <button
-            onClick={() => setMostrarRivales(!mostrarRivales)}
-            style={{ ...inputStyle, textAlign: "left", cursor: "pointer", marginBottom: "8px", display: "flex", alignItems: "center", gap: "10px" }}
-          >
-            {rivalEscudo ? (
-              <img src={rivalEscudo} alt="escudo" style={{ width: "28px", height: "28px", objectFit: "contain", borderRadius: "50%" }} />
-            ) : (
-              <div style={{ width: "28px", height: "28px", borderRadius: "50%", background: "#333" }} />
-            )}
-            <span style={{ color: rivalNombre ? "#fff" : "#666" }}>
-              {rivalNombre || "Seleccionar Rival..."}
-            </span>
+          <button onClick={() => setMostrarRivales(!mostrarRivales)} style={{ ...inputStyle, textAlign: "left", cursor: "pointer", marginBottom: "8px", display: "flex", alignItems: "center", gap: "10px" }}>
+            {rivalEscudo ? <img src={rivalEscudo} alt="e" style={{ width: "28px", height: "28px", objectFit: "contain", borderRadius: "50%" }} /> : <div style={{ width: "28px", height: "28px", borderRadius: "50%", background: "#333" }} />}
+            <span style={{ color: rivalNombre ? "#fff" : "#666" }}>{rivalNombre || "Seleccionar Rival..."}</span>
           </button>
 
           {mostrarRivales && (
-            <div style={{ background: "#1e1e1e", border: "1px solid #2e2e2e", borderRadius: "12px", marginBottom: "16px", overflow: "hidden", maxHeight: "200px", overflowY: "auto" }}>
+            <div style={{ background: "#1e1e1e", border: "1px solid #2e2e2e", borderRadius: "12px", marginBottom: "16px", overflowY: "auto", maxHeight: "200px" }}>
               {rivales.map((r) => (
-                <button
-                  key={r.id}
-                  onClick={() => {
-                    setRivalId(r.id);
-                    setRivalNombre(r.nombre);
-                    setRivalEscudo(r.escudoUrl || "");
-                    setMostrarRivales(false);
-                  }}
-                  style={{ width: "100%", padding: "12px 16px", background: rivalId === r.id ? "#2e2e2e" : "transparent", border: "none", borderBottom: "1px solid #2e2e2e", color: "#fff", fontSize: "14px", textAlign: "left", display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }}
-                >
-                  {r.escudoUrl && (
-                    <img src={r.escudoUrl} alt="escudo" style={{ width: "28px", height: "28px", objectFit: "contain", borderRadius: "50%" }} />
-                  )}
-                  {r.nombre}
+                <button key={r.id} onClick={() => { setRivalId(r.id); setRivalNombre(r.nombre); setRivalEscudo(r.escudoUrl || ""); setMostrarRivales(false); }} style={{ width: "100%", padding: "12px 16px", background: rivalId === r.id ? "#2e2e2e" : "transparent", border: "none", borderBottom: "1px solid #2e2e2e", color: "#fff", fontSize: "14px", textAlign: "left", display: "flex", alignItems: "center", gap: "10px" }}>
+                  {r.escudoUrl && <img src={r.escudoUrl} alt="e" style={{ width: "28px", height: "28px", objectFit: "contain" }} />} {r.nombre}
                 </button>
               ))}
             </div>
           )}
 
-          <p style={{ color: "#888", fontSize: "13px", marginBottom: "6px" }}>¿En qué cancha jugamos?</p>
-          <button
-            onClick={() => setMostrarCanchas(!mostrarCanchas)}
-            style={{ ...inputStyle, textAlign: "left", cursor: "pointer", marginBottom: "8px", color: cancha ? "#fff" : "#666" }}
-          >
+          <p style={{ color: "#888", fontSize: "13px", marginBottom: "6px" }}>¿En qué cancha?</p>
+          <button onClick={() => setMostrarCanchas(!mostrarCanchas)} style={{ ...inputStyle, textAlign: "left", marginBottom: "8px", color: cancha ? "#fff" : "#666" }}>
             {cancha === "otro" ? (canchaPersonalizada || "Escribí la cancha...") : cancha || "Seleccionar Cancha..."}
           </button>
 
           {mostrarCanchas && (
-            <div style={{ background: "#1e1e1e", border: "1px solid #2e2e2e", borderRadius: "12px", marginBottom: "16px", overflow: "hidden", maxHeight: "200px", overflowY: "auto" }}>
+            <div style={{ background: "#1e1e1e", border: "1px solid #2e2e2e", borderRadius: "12px", marginBottom: "16px", maxHeight: "200px", overflowY: "auto" }}>
               {rivales.map((r) => (
-                <button
-                  key={r.id}
-                  onClick={() => { setCancha(r.nombre); setMostrarCanchas(false); }}
-                  style={{ width: "100%", padding: "12px 16px", background: cancha === r.nombre ? "#2e2e2e" : "transparent", border: "none", borderBottom: "1px solid #2e2e2e", color: "#fff", fontSize: "14px", textAlign: "left", cursor: "pointer" }}
-                >
-                  {r.nombre}
-                </button>
+                <button key={r.id} onClick={() => { setCancha(r.nombre); setMostrarCanchas(false); }} style={{ width: "100%", padding: "12px 16px", background: "transparent", border: "none", borderBottom: "1px solid #2e2e2e", color: "#fff", fontSize: "14px", textAlign: "left" }}>{r.nombre}</button>
               ))}
-              <button
-                onClick={() => { setCancha("otro"); setMostrarCanchas(false); }}
-                style={{ width: "100%", padding: "12px 16px", background: "transparent", border: "none", color: "#aaa", fontSize: "14px", textAlign: "left", cursor: "pointer" }}
-              >
-                Otro...
-              </button>
+              <button onClick={() => { setCancha("otro"); setMostrarCanchas(false); }} style={{ width: "100%", padding: "12px 16px", color: "#aaa", border: "none", textAlign: "left" }}>Otro...</button>
             </div>
           )}
 
-          {cancha === "otro" && (
-            <input
-              value={canchaPersonalizada}
-              onChange={(e) => setCanchaPersonalizada(e.target.value)}
-              placeholder="Escribí el nombre de la cancha..."
-              style={{ ...inputStyle, marginBottom: "16px" }}
-            />
-          )}
+          {cancha === "otro" && <input value={canchaPersonalizada} onChange={(e) => setCanchaPersonalizada(e.target.value)} placeholder="Nombre de la cancha..." style={{ ...inputStyle, marginBottom: "16px" }} />}
 
           <p style={{ color: "#888", fontSize: "13px", marginBottom: "6px" }}>Fecha</p>
-          <input
-            type="date"
-            value={fecha}
-            onChange={(e) => setFecha(e.target.value)}
-            min={new Date().toISOString().split("T")[0]}
-            style={{ ...inputStyle, marginBottom: "16px", color: fecha ? "#fff" : "#666" }}
-          />
+          <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} style={{ ...inputStyle, marginBottom: "16px" }} />
 
           <p style={{ color: "#888", fontSize: "13px", marginBottom: "6px" }}>Hora</p>
-          <button
-            onClick={() => setMostrarHora(!mostrarHora)}
-            style={{ ...inputStyle, textAlign: "left", cursor: "pointer", marginBottom: "8px" }}
-          >
-            {hora.hora}:{hora.minutos} HS
-          </button>
+          <button onClick={() => setMostrarHora(!mostrarHora)} style={{ ...inputStyle, textAlign: "left", marginBottom: "8px" }}>{hora.hora}:{hora.minutos} HS</button>
 
           {mostrarHora && (
-            <div style={{ background: "#1e1e1e", border: "1px solid #2e2e2e", borderRadius: "12px", marginBottom: "16px", overflow: "hidden" }}>
-              <Picker value={hora} onChange={setHora} wheelMode="normal" height={150}>
-                <Picker.Column name="hora">
-                  {HORAS.map((h) => (
-                    <Picker.Item key={h} value={h}>
-                      {({ selected }) => (
-                        <div style={{ color: selected ? "#fff" : "#555", fontWeight: selected ? 700 : 400, fontSize: selected ? "20px" : "16px", padding: "4px 0" }}>
-                          {h}
-                        </div>
-                      )}
-                    </Picker.Item>
-                  ))}
-                </Picker.Column>
-                <Picker.Column name="minutos">
-                  {MINUTOS.map((m) => (
-                    <Picker.Item key={m} value={m}>
-                      {({ selected }) => (
-                        <div style={{ color: selected ? "#fff" : "#555", fontWeight: selected ? 700 : 400, fontSize: selected ? "20px" : "16px", padding: "4px 0" }}>
-                          {m}
-                        </div>
-                      )}
-                    </Picker.Item>
-                  ))}
-                </Picker.Column>
+            <div style={{ background: "#1e1e1e", border: "1px solid #2e2e2e", borderRadius: "12px", marginBottom: "16px" }}>
+              <Picker value={hora} onChange={setHora} height={150}>
+                <Picker.Column name="hora">{HORAS.map(h => <Picker.Item key={h} value={h}>{({selected}) => <div style={{color: selected ? "#fff" : "#555", fontWeight: selected?700:400}}>{h}</div>}</Picker.Item>)}</Picker.Column>
+                <Picker.Column name="minutos">{MINUTOS.map(m => <Picker.Item key={m} value={m}>{({selected}) => <div style={{color: selected ? "#fff" : "#555", fontWeight: selected?700:400}}>{m}</div>}</Picker.Item>)}</Picker.Column>
               </Picker>
-              <button
-                onClick={() => setMostrarHora(false)}
-                style={{ width: "100%", padding: "12px", background: "#2e2e2e", border: "none", color: "#fff", fontSize: "14px", fontWeight: 600 }}
-              >
-                Confirmar
-              </button>
+              <button onClick={() => setMostrarHora(false)} style={{ width: "100%", padding: "12px", background: "#2e2e2e", color: "#fff", border: "none" }}>Confirmar</button>
             </div>
           )}
 
-          <p style={{ color: "#888", fontSize: "13px", marginBottom: "6px" }}>Observaciones (opcional)</p>
-          <textarea
-            value={observaciones}
-            onChange={(e) => setObservaciones(e.target.value)}
-            placeholder="Ej: Llevar canilleras, DNI, etc."
-            rows={3}
-            style={{ ...inputStyle, resize: "none", marginBottom: "16px" }}
-          />
+          <textarea value={observaciones} onChange={(e) => setObservaciones(e.target.value)} placeholder="Observaciones..." rows={3} style={{ ...inputStyle, resize: "none" }} />
         </div>
 
         <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, padding: "16px", background: "#111", borderTop: "1px solid #2e2e2e" }}>
-          <button
-            onClick={() => { if (rivalId && fecha && (cancha !== "otro" || canchaPersonalizada)) setPantalla("citados"); }}
-            style={{ width: "100%", padding: "16px", background: rivalId && fecha && (cancha !== "otro" || canchaPersonalizada) ? "#16a34a" : "#2e2e2e", border: "none", borderRadius: "12px", color: rivalId && fecha ? "#fff" : "#666", fontSize: "16px", fontWeight: 700 }}
-          >
-            CONTINUAR A CITADOS
-          </button>
+          <button onClick={() => { if (rivalId && fecha) setPantalla("citados"); }} style={{ width: "100%", padding: "16px", background: rivalId && fecha ? "#16a34a" : "#2e2e2e", borderRadius: "12px", color: "#fff", border: "none", fontWeight: 700 }}>CONTINUAR A CITADOS</button>
         </div>
       </div>
     );
   }
 
+  // --- PANTALLA CITADOS (CON EL CAMBIO DE DISEÑO EN NOMBRES) ---
   if (pantalla === "citados") {
     return (
       <div style={pageStyle}>
         <Navbar />
         <div style={{ padding: "24px 16px" }}>
           {botonVolver(() => setPantalla("configurar"))}
-          <h1 style={{ fontSize: "22px", fontWeight: 700, marginBottom: "20px", color: "#fff" }}>
-            CITACIÓN: {categoriaSeleccionada.label.toUpperCase()}
-          </h1>
+          <h1 style={{ fontSize: "22px", fontWeight: 700, marginBottom: "20px", color: "#fff" }}>CITACIÓN: {categoriaSeleccionada.label.toUpperCase()}</h1>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
             {jugadores.map((jugador) => {
               const citado = citados[jugador.id];
               return (
-                <div
-                  key={jugador.id}
-                  style={{ background: "#1e1e1e", border: "1px solid #2e2e2e", borderRadius: "12px", padding: "12px 16px", display: "flex", alignItems: "center", gap: "12px" }}
-                >
-                  <button
-                    onClick={() => navigate(`/gestion/ficha/${jugador.id}`)}
-                    style={{ width: "40px", height: "40px", borderRadius: "50%", background: "#2e2e2e", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, border: "none", cursor: "pointer", padding: 0 }}
-                  >
-                    {fotos[jugador.id] ? (
-                      <img src={fotos[jugador.id]} alt="foto" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                    ) : (
-                      <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="#666" strokeWidth="1.5">
-                        <circle cx="8" cy="5" r="3" /><path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6" />
-                      </svg>
-                    )}
+                <div key={jugador.id} style={{ background: "#1e1e1e", border: "1px solid #2e2e2e", borderRadius: "12px", padding: "12px 16px", display: "flex", alignItems: "center", gap: "12px" }}>
+                  <button onClick={() => navigate(`/gestion/ficha/${jugador.id}`)} style={{ width: "50px", height: "50px", borderRadius: "50%", background: "#2e2e2e", overflow: "hidden", border: "none", flexShrink: 0 }}>
+                    {fotos[jugador.id] ? <img src={fotos[jugador.id]} alt="f" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{fontSize:"20px", opacity:0.3}}>👤</div>}
                   </button>
-                  <span style={{ flex: 1, color: "#fff", fontSize: "14px", fontWeight: 600, textTransform: "uppercase" }}>
-                    {jugador.NOMBRE} {jugador.APELLIDO}
-                  </span>
-                  <div
-                    onClick={() => setCitados((prev) => ({ ...prev, [jugador.id]: !prev[jugador.id] }))}
-                    style={{ width: "48px", height: "26px", borderRadius: "13px", background: citado ? "#16a34a" : "#333", display: "flex", alignItems: "center", padding: "3px", cursor: "pointer", transition: "background 0.2s", flexShrink: 0 }}
-                  >
-                    <div style={{ width: "20px", height: "20px", borderRadius: "50%", background: "#fff", transform: citado ? "translateX(22px)" : "translateX(0)", transition: "transform 0.2s" }} />
+                  
+                  {/* AQUÍ EL CAMBIO: Apellido arriba Negrita, Nombre abajo Chico */}
+                  <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+                    <span style={{ color: "#fff", fontSize: "16px", fontWeight: "900", textTransform: "uppercase", lineHeight: "1.2" }}>
+                      {jugador.APELLIDO}
+                    </span>
+                    <span style={{ color: "#888", fontSize: "13px", fontWeight: "400", textTransform: "capitalize" }}>
+                      {jugador.NOMBRE.toLowerCase()}
+                    </span>
+                  </div>
+
+                  <div onClick={() => setCitados((prev) => ({ ...prev, [jugador.id]: !prev[jugador.id] }))} style={{ width: "48px", height: "26px", borderRadius: "13px", background: citado ? "#16a34a" : "#333", display: "flex", alignItems: "center", padding: "3px", cursor: "pointer", transition: "0.2s" }}>
+                    <div style={{ width: "20px", height: "20px", borderRadius: "50%", background: "#fff", transform: citado ? "translateX(22px)" : "translateX(0)", transition: "0.2s" }} />
                   </div>
                 </div>
               );
@@ -389,16 +254,8 @@ export default function Convocatorias() {
         </div>
 
         <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, padding: "12px 16px 16px", background: "#111", borderTop: "1px solid #2e2e2e" }}>
-          <p style={{ color: "#16a34a", fontWeight: 700, fontSize: "15px", marginBottom: "10px", textAlign: "center" }}>
-            JUGADORES ELEGIDOS: {totalCitados}
-          </p>
-          <button
-            onClick={() => setPantalla("pdf")}
-            disabled={totalCitados === 0}
-            style={{ width: "100%", padding: "16px", background: totalCitados > 0 ? "#fff" : "#2e2e2e", border: "none", borderRadius: "12px", color: totalCitados > 0 ? "#111" : "#666", fontSize: "16px", fontWeight: 700 }}
-          >
-            GENERAR Y COMPARTIR PDF
-          </button>
+          <p style={{ color: "#16a34a", fontWeight: 700, fontSize: "15px", marginBottom: "10px", textAlign: "center" }}>ELEGIDOS: {totalCitados}</p>
+          <button onClick={() => setPantalla("pdf")} disabled={totalCitados === 0} style={{ width: "100%", padding: "16px", background: totalCitados > 0 ? "#fff" : "#2e2e2e", borderRadius: "12px", color: totalCitados > 0 ? "#111" : "#666", fontWeight: 700, border: "none" }}>GENERAR Y COMPARTIR PDF</button>
         </div>
       </div>
     );
@@ -406,20 +263,7 @@ export default function Convocatorias() {
 
   if (pantalla === "pdf") {
     const jugadoresCitados = jugadores.filter((j) => citados[j.id]);
-    return (
-      <PlacaConvocatoria
-        categoria={categoriaSeleccionada.label}
-        rival={rivalNombre}
-        escudoRival={rivalEscudo}
-        cancha={cancha === "otro" ? canchaPersonalizada : cancha}
-        fecha={fecha}
-        hora={`${hora.hora}:${hora.minutos}`}
-        observaciones={observaciones}
-        jugadoresCitados={jugadoresCitados}
-        fotos={fotos}
-        onVolver={() => setPantalla("citados")}
-      />
-    );
+    return <PlacaConvocatoria categoria={categoriaSeleccionada.label} rival={rivalNombre} escudoRival={rivalEscudo} cancha={cancha === "otro" ? canchaPersonalizada : cancha} fecha={fecha} hora={`${hora.hora}:${hora.minutos}`} observaciones={observaciones} jugadoresCitados={jugadoresCitados} fotos={fotos} onVolver={() => setPantalla("citados")} />;
   }
 
   return null;

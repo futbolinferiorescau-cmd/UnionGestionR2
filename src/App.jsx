@@ -11,6 +11,7 @@ import Convocatorias from "./pages/gestion/Convocatorias";
 import PlanillaAsistencias from "./pages/gestion/PlanillaAsistencias";
 import Subcomision from "./pages/subcomision/Subcomision";
 import Cobranzas from "./pages/cobranzas/Cobranzas";
+import VentaMedias from "./pages/subcomision/VentaMedias";
 
 function App() {
   return (
@@ -32,7 +33,8 @@ function App() {
         <Route path="/gestion/ficha/:dni" element={<FichaJugador />} />
 
         {/* --- FIN DEL SECTOR DEL ERROR --- */}
-
+        
+        <Route path="/subcomision/venta-medias" element={<VentaMedias />} />   
         {/* Otras rutas de la App */}
         <Route path="/gestion/asistencias" element={<Asistencias />} />
         <Route path="/gestion/convocatorias" element={<Convocatorias />} />
