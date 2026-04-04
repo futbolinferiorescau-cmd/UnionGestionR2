@@ -13,47 +13,49 @@ import Subcomision from "./pages/subcomision/Subcomision";
 import Cobranzas from "./pages/cobranzas/Cobranzas";
 import VentaMedias from "./pages/subcomision/VentaMedias";
 import Planificacion from "./pages/gestion/Planificacion"; 
-
-// --- NUEVAS IMPORTACIONES PARA EL TRACKER Y EL HISTORIAL ---
 import NuevoPartido from "./pages/gestion/NuevoPartido";
 import Tracker from "./pages/gestion/Tracker";
-import Historial from "./pages/gestion/Historial"; // <--- AGREGADO
+import Historial from "./pages/gestion/Historial";
+
+// --- NUEVA PÁGINA DE ACCESO ---
+import Acceso from "./pages/Acceso"; 
+
+// COMPONENTE DE PROTECCIÓN
+// Este componente chequea si el usuario ya puso la clave
+const ProtectedRoute = ({ children }) => {
+  const isAuth = localStorage.getItem("auth_union") === "true";
+  return isAuth ? children : <Navigate to="/login" />;
+};
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Pantalla principal */}
-        <Route path="/" element={<Inicio />} />
+        {/* RUTA PÚBLICA: El "Muro" de entrada */}
+        <Route path="/login" element={<Acceso />} />
+
+        {/* TODAS LAS RUTAS PROTEGIDAS (Solo entran con clave) */}
+        <Route path="/" element={<ProtectedRoute><Inicio /></ProtectedRoute>} />
         
-        {/* Menú de Gestión */}
-        <Route path="/gestion" element={<Gestion />} />
-
-        {/* Sector Fichas */}
-        <Route path="/gestion/ficha" element={<BuscarJugador />} />
-        <Route path="/gestion/ficha/:dni" element={<FichaJugador />} />
+        <Route path="/gestion" element={<ProtectedRoute><Gestion /></ProtectedRoute>} />
+        <Route path="/gestion/ficha" element={<ProtectedRoute><BuscarJugador /></ProtectedRoute>} />
+        <Route path="/gestion/ficha/:dni" element={<ProtectedRoute><FichaJugador /></ProtectedRoute>} />
         
-        <Route path="/subcomision/venta-medias" element={<VentaMedias />} />   
+        <Route path="/subcomision/venta-medias" element={<ProtectedRoute><VentaMedias /></ProtectedRoute>} />   
         
-        {/* Rutas para Profes y PF */}
-        <Route path="/gestion/asistencias" element={<Asistencias />} />
-        <Route path="/gestion/convocatorias" element={<Convocatorias />} />
-        <Route path="/gestion/planificacion" element={<Planificacion />} />
-        <Route path="/gestion/planilla" element={<PlanillaAsistencias />} />
+        <Route path="/gestion/asistencias" element={<ProtectedRoute><Asistencias /></ProtectedRoute>} />
+        <Route path="/gestion/convocatorias" element={<ProtectedRoute><Convocatorias /></ProtectedRoute>} />
+        <Route path="/gestion/planificacion" element={<ProtectedRoute><Planificacion /></ProtectedRoute>} />
+        <Route path="/gestion/planilla" element={<ProtectedRoute><PlanillaAsistencias /></ProtectedRoute>} />
 
-        {/* --- RUTAS DEL TRACKER E INFORMES --- */}
-        {/* 1. Para armar el equipo antes del partido */}
-        <Route path="/gestion/nuevo-partido" element={<NuevoPartido />} />
-        {/* 2. Para seguir el partido en vivo con el cronómetro */}
-        <Route path="/gestion/tracker" element={<Tracker />} />
-        {/* 3. Para ver los informes guardados de Firestore */}
-        <Route path="/gestion/historial" element={<Historial />} /> {/* <--- AGREGADO */}
+        <Route path="/gestion/nuevo-partido" element={<ProtectedRoute><NuevoPartido /></ProtectedRoute>} />
+        <Route path="/gestion/tracker" element={<ProtectedRoute><Tracker /></ProtectedRoute>} />
+        <Route path="/gestion/historial" element={<ProtectedRoute><Historial /></ProtectedRoute>} />
 
-        {/* Otras Rutas */}
-        <Route path="/subcomision" element={<Subcomision />} />
-        <Route path="/cobranzas" element={<Cobranzas />} />
+        <Route path="/subcomision" element={<ProtectedRoute><Subcomision /></ProtectedRoute>} />
+        <Route path="/cobranzas" element={<ProtectedRoute><Cobranzas /></ProtectedRoute>} />
 
-        {/* Redirección por seguridad */}
+        {/* Redirección por seguridad: Si se pierde, va al inicio (que lo mandará al login si no tiene clave) */}
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </BrowserRouter>
