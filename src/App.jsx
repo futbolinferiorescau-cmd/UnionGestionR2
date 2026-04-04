@@ -12,8 +12,12 @@ import PlanillaAsistencias from "./pages/gestion/PlanillaAsistencias";
 import Subcomision from "./pages/subcomision/Subcomision";
 import Cobranzas from "./pages/cobranzas/Cobranzas";
 import VentaMedias from "./pages/subcomision/VentaMedias";
-// --- NUEVA IMPORTACIÓN ---
 import Planificacion from "./pages/gestion/Planificacion"; 
+
+// --- NUEVAS IMPORTACIONES PARA EL TRACKER Y EL HISTORIAL ---
+import NuevoPartido from "./pages/gestion/NuevoPartido";
+import Tracker from "./pages/gestion/Tracker";
+import Historial from "./pages/gestion/Historial"; // <--- AGREGADO
 
 function App() {
   return (
@@ -34,11 +38,18 @@ function App() {
         {/* Rutas para Profes y PF */}
         <Route path="/gestion/asistencias" element={<Asistencias />} />
         <Route path="/gestion/convocatorias" element={<Convocatorias />} />
-        
-        {/* --- NUEVA RUTA DE PLANIFICACIÓN --- */}
         <Route path="/gestion/planificacion" element={<Planificacion />} />
-
         <Route path="/gestion/planilla" element={<PlanillaAsistencias />} />
+
+        {/* --- RUTAS DEL TRACKER E INFORMES --- */}
+        {/* 1. Para armar el equipo antes del partido */}
+        <Route path="/gestion/nuevo-partido" element={<NuevoPartido />} />
+        {/* 2. Para seguir el partido en vivo con el cronómetro */}
+        <Route path="/gestion/tracker" element={<Tracker />} />
+        {/* 3. Para ver los informes guardados de Firestore */}
+        <Route path="/gestion/historial" element={<Historial />} /> {/* <--- AGREGADO */}
+
+        {/* Otras Rutas */}
         <Route path="/subcomision" element={<Subcomision />} />
         <Route path="/cobranzas" element={<Cobranzas />} />
 

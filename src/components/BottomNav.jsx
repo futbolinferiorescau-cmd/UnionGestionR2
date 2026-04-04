@@ -1,65 +1,104 @@
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+
+const IconAtras = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M15 18L9 12L15 6" stroke="#33b5e5" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+const IconHome = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M3 9L12 2L21 9V20C21 20.5304 20.7893 21.0391 20.4142 21.4142C20.0391 21.7893 19.5304 22 19 22H5C4.46957 22 3.96086 21.7893 3.58579 21.4142C3.21071 21.0391 3 20.5304 3 20V9Z" stroke="#33b5e5" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
 
 export default function BottomNav() {
   const navigate = useNavigate();
-  const location = useLocation();
-
-  const items = [
-    { label: "Jugadores", path: "/gestion", icon: ( <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="5" r="3" /><path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6" /></svg> ) },
-    { label: "Asistencia", path: "/gestion/asistencias", icon: ( <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="1" y="3" width="14" height="11" rx="1" /><path d="M5 3V1M11 3V1M1 7h14" /></svg> ) },
-    { label: "Convocat.", path: "/gestion/convocatorias", icon: ( <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="6" /><path d="M5 8h6M8 5v6" /></svg> ) },
-    {
-      label: "Planif.",
-      path: "/gestion/planificacion",
-      icon: (
-        <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <path d="M3 2h10v12H3z" /><path d="M5 5h6M5 8h6M5 11h4" />
-        </svg>
-      ),
-    },
-    { label: "Tesorería", path: "/subcomision", icon: ( <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="1" y="4" width="14" height="10" rx="1" /><path d="M5 4V2h6v2" /></svg> ) },
-    { label: "Cobranzas", path: "/cobranzas", icon: ( <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="6" /><path d="M8 5v6M6 7h3.5a1.5 1.5 0 010 3H6" /></svg> ) },
-  ];
 
   return (
-    <nav style={{
-      position: "fixed",
-      bottom: 0,
-      right: 0,
-      background: "#1a1a1a",
-      borderTop: "1px solid #2e2e2e",
-      display: "flex",
-      justifyContent: "space-around",
-      alignItems: "center",
-      padding: "8px 0 16px",
-      zIndex: 100,
-      maxWidth: "600px",
-      margin: "0 auto",
-      left: "50%",
-      transform: "translateX(-50%)",
-      width: "100%",
-    }}>
-      {items.map((item) => (
-        <button
-          key={item.path}
-          onClick={() => navigate(item.path)}
-          style={{
-            background: location.pathname === item.path ? "#2e2e2e" : "none",
-            border: "none",
-            borderRadius: "10px",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: "4px",
-            padding: "6px 8px",
-            color: location.pathname === item.path ? "#fff" : "#555",
-            minWidth: "55px",
-          }}
+    <nav style={navStyle}>
+      <div style={container}>
+        {/* BOTÓN ATRÁS */}
+        <button 
+          onClick={() => navigate(-1)} 
+          style={btnStyle}
+          onMouseDown={(e) => e.currentTarget.style.transform = "scale(0.9)"}
+          onMouseUp={(e) => e.currentTarget.style.transform = "scale(1)"}
         >
-          {item.icon}
-          <span style={{ fontSize: "9px", whiteSpace: "nowrap" }}>{item.label}</span>
+          <IconAtras />
+          <span style={textStyle}>ATRÁS</span>
         </button>
-      ))}
+
+        {/* ESCUDO FLOTANTE CENTRAL */}
+        <div style={escudoWrapper}>
+          <img src="/images/unionas_escudo.png" alt="U" style={imgEscudoStyle} />
+        </div>
+
+        {/* BOTÓN INICIO */}
+        <button 
+          onClick={() => navigate("/")} 
+          style={btnStyle}
+          onMouseDown={(e) => e.currentTarget.style.transform = "scale(0.9)"}
+          onMouseUp={(e) => e.currentTarget.style.transform = "scale(1)"}
+        >
+          <IconHome />
+          <span style={textStyle}>INICIO</span>
+        </button>
+      </div>
     </nav>
   );
 }
+
+// ESTILOS
+const navStyle = {
+  position: "fixed",
+  bottom: 0,
+  left: 0,
+  width: "100%",
+  background: "#111", 
+  borderTop: "1px solid #222",
+  padding: "8px 0 15px 0", 
+  zIndex: 1000,
+};
+
+const container = {
+  display: "flex",
+  justifyContent: "space-around",
+  alignItems: "center",
+  maxWidth: "500px",
+  margin: "0 auto",
+};
+
+const btnStyle = {
+  background: "none",
+  border: "none",
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  gap: "2px",
+  cursor: "pointer",
+  transition: "transform 0.1s ease",
+  flex: 1,
+};
+
+const textStyle = {
+  color: "#fff",
+  fontSize: "9px",
+  fontWeight: "900",
+  letterSpacing: "0.5px",
+  textTransform: "uppercase",
+};
+
+const escudoWrapper = {
+  width: "48px",
+  height: "48px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+
+const imgEscudoStyle = {
+  width: "100%", 
+  height: "100%",
+  objectFit: "contain",
+};

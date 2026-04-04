@@ -87,7 +87,7 @@ export default function BuscarJugador() {
             try {
               urlEncontrada = await getDownloadURL(ref(storage, `fotos_jugadores/${j.DNI}${ext}`));
               break;
-            } catch (e) { continue; }
+            } catch { continue; }
           }
           nuevasFotos[j.DNI] = urlEncontrada || "NO_FOTO";
         }
@@ -96,7 +96,7 @@ export default function BuscarJugador() {
     };
 
     cargarFotos();
-  }, [categoriaSel, filtrados, storage]); // Se activa cuando cambias la categoría
+  }, [categoriaSel, filtrados, fotosJugadores, storage]); // Se activa cuando cambias la categoría
 
   return (
     <div style={styles.page}>
