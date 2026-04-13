@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "../../firebase";
 import Navbar from "../../components/Navbar";
@@ -25,60 +25,81 @@ export default function PlanillaAsistencias() {
   const [asistencias, setAsistencias] = useState([]);
   const [jugadores, setJugadores] = useState([]);
 
+  // --- FUNCIÓN CLAVE: Convierte cualquier fecha (02-04 o 02/04/2026) en un objeto Date para comparar ---
+  const normalizarFecha = (fechaStr) => {
+    if (!fechaStr) return new Date(0);
+    // Reemplaza guiones por barras para unificar y separa
+    const partes = fechaStr.replace(/-/g, "/").split("/");
+    const dia = parseInt(partes[0]);
+    const mes = parseInt(partes[1]) - 1; // Enero es 0
+    const año = partes[2] ? parseInt(partes[2]) : 2026; // Si no tiene año, asume 2026
+    return new Date(año, mes, dia);
+  };
+
+  // --- FUNCIÓN PARA MOSTRAR: Siempre devuelve DD/MM ---
+  const formatoCorto = (fechaStr) => {
+    if (!fechaStr) return "S/F";
+    const partes = fechaStr.replace(/-/g, "/").split("/");
+    return `${partes[0].padStart(2, "0")}/${partes[1].padStart(2, "0")}`;
+  };
+
   useEffect(() => {
     if (!categoriaSeleccionada) return;
     const fetchData = async () => {
+      // 1. Cargar Asistencias
       const snapAs = await getDocs(collection(db, "ASISTENCIAS"));
       const todas = snapAs.docs
         .map((doc) => ({ id: doc.id, ...doc.data() }))
         .filter((a) => a.categoria === categoriaSeleccionada.valor)
-        .sort((a, b) => {
-          const [da, ma] = a.fecha.split("/").map(Number);
-          const [db2, mb] = b.fecha.split("/").map(Number);
-          return ma !== mb ? ma - mb : da - db2;
-        });
+        // ORDENAMIENTO CRONOLÓGICO TOTAL
+        .sort((a, b) => normalizarFecha(a.fecha) - normalizarFecha(b.fecha));
+      
       setAsistencias(todas);
 
+      // 2. Cargar Jugadores
       const snapJug = await getDocs(collection(db, "JUGADORES"));
       const lista = snapJug.docs
         .map((doc) => ({ id: doc.id, ...doc.data() }))
         .filter((j) => {
-          const año = parseInt(j["FECHA NACIMIENTO"].split("/")[2]);
+          const fechaNac = j["FECHA NACIMIENTO"] || "";
+          const partes = fechaNac.replace(/-/g, "/").split("/");
+          const año = parseInt(partes[2]);
           return categoriaSeleccionada.años.includes(año);
         })
-        .sort((a, b) => a.APELLIDO.localeCompare(b.APELLIDO));
+        .sort((a, b) => (a.APELLIDO || "").localeCompare(b.APELLIDO || ""));
+      
       setJugadores(lista);
     };
     fetchData();
   }, [categoriaSeleccionada]);
 
   const estaPresente = (jugador, asistencia) => {
-    const nombreCompleto = `${jugador.NOMBRE} ${jugador.APELLIDO}`;
-    return asistencia.presentes?.some(
-      (p) => p.toUpperCase() === nombreCompleto.toUpperCase()
-    );
+    const nombreCompleto = `${jugador.NOMBRE} ${jugador.APELLIDO}`.toUpperCase().trim();
+    // Buscamos en el array 'presentes' o campos sueltos (como hacíamos en cobranzas)
+    const listado = [
+        ...(asistencia.presentes || []),
+        ...Object.values(asistencia).filter(v => typeof v === 'string' && v.length > 5 && v !== asistencia.fecha)
+    ].map(n => n.toUpperCase().trim());
+    
+    return listado.includes(nombreCompleto);
   };
 
- const exportarPDF = () => {
-    console.log("Generando PDF...");
-    console.log("Asistencias:", asistencias.length);
-    console.log("Jugadores:", jugadores.length);
+  const exportarPDF = () => {
     const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
-
     pdf.setFontSize(14);
     pdf.setFont("helvetica", "bold");
     pdf.text(`Planilla de Asistencias - ${categoriaSeleccionada.label}`, 14, 15);
 
     const columnas = [
-      { header: "Jugador", dataKey: "jugador" },
+      { header: "JUGADOR", dataKey: "jugador" },
       ...asistencias.map((a) => ({
-        header: a.fecha.split("/").slice(0, 2).join("/"),
+        header: formatoCorto(a.fecha),
         dataKey: a.id,
       })),
     ];
 
     const filas = jugadores.map((jugador) => {
-      const fila = { jugador: jugador.APELLIDO };
+      const fila = { jugador: `${jugador.APELLIDO}, ${jugador.NOMBRE}` };
       asistencias.forEach((a) => {
         fila[a.id] = estaPresente(jugador, a) ? "P" : "A";
       });
@@ -90,135 +111,81 @@ export default function PlanillaAsistencias() {
       columns: columnas,
       body: filas,
       theme: "grid",
-      headStyles: {
-        fillColor: [30, 30, 30],
-        textColor: [255, 255, 255],
-        fontStyle: "bold",
-        halign: "center",
-        fontSize: 9,
-      },
-      bodyStyles: {
-        fontSize: 9,
-        halign: "center",
-      },
-      columnStyles: {
-        jugador: {
-          halign: "left",
-          fontStyle: "bold",
-          cellWidth: 40,
-        },
-      },
+      headStyles: { fillColor: [30, 30, 30], halign: "center", fontSize: 8 },
+      bodyStyles: { fontSize: 8, halign: "center" },
+      columnStyles: { jugador: { halign: "left", cellWidth: 45, fontStyle: "bold" } },
       didParseCell: (data) => {
         if (data.section === "body" && data.column.dataKey !== "jugador") {
           if (data.cell.raw === "P") {
             data.cell.styles.textColor = [22, 163, 74];
-            data.cell.styles.fontStyle = "bold";
           } else {
             data.cell.styles.textColor = [220, 38, 38];
-            data.cell.styles.fontStyle = "bold";
           }
         }
       },
     });
 
-    const blob = pdf.output("blob");
-const url = URL.createObjectURL(blob);
-const link = document.createElement("a");
-link.href = url;
-link.download = `Planilla_${categoriaSeleccionada.label}.pdf`;
-link.click();
-URL.revokeObjectURL(url);
+    pdf.save(`Asistencias_${categoriaSeleccionada.label}.pdf`);
   };
 
+  // --- VISTA DE SELECCIÓN DE CATEGORÍAS ---
   if (pantalla === "categorias") {
     return (
       <div style={{ background: "#111", minHeight: "100vh", paddingBottom: "40px" }}>
         <Navbar />
         <div style={{ padding: "24px 16px" }}>
-          <button
-            onClick={() => window.history.back()}
-            style={{ background: "#1e1e1e", border: "1px solid #2e2e2e", borderRadius: "10px", color: "#fff", fontSize: "14px", padding: "8px 16px", marginBottom: "20px", cursor: "pointer" }}
-          >
-            ← Atrás
-          </button>
-          <h1 style={{ fontSize: "26px", fontWeight: 700, marginBottom: "24px", color: "#fff", textTransform: "uppercase" }}>
-            Seleccioná Categoría
-          </h1>
-          <div style={{ marginBottom: "16px" }}>
-            <p style={{ color: "#666", fontSize: "12px", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "1px" }}>Infantiles</p>
-            {CATEGORIAS.slice(0, 7).map((cat) => (
-              <button
-                key={cat.valor}
-                onClick={() => { setCategoriaSeleccionada(cat); setPantalla("planilla"); }}
-                style={{ width: "100%", padding: "18px 16px", background: "#1e1e1e", border: "1px solid #2e2e2e", borderRadius: "12px", color: "#fff", fontSize: "15px", textAlign: "left", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}
-              >
-                {cat.label}
-                <span style={{ color: "#555" }}>›</span>
-              </button>
-            ))}
-          </div>
-          <div>
-            <p style={{ color: "#666", fontSize: "12px", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "1px" }}>Juveniles</p>
-            {CATEGORIAS.slice(7).map((cat) => (
-              <button
-                key={cat.valor}
-                onClick={() => { setCategoriaSeleccionada(cat); setPantalla("planilla"); }}
-                style={{ width: "100%", padding: "18px 16px", background: "#1e1e1e", border: "1px solid #2e2e2e", borderRadius: "12px", color: "#fff", fontSize: "15px", textAlign: "left", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}
-              >
-                {cat.label}
-                <span style={{ color: "#555" }}>›</span>
-              </button>
-            ))}
-          </div>
+          <button onClick={() => window.history.back()} style={styles.btnAtras}>← Atrás</button>
+          <h1 style={styles.tituloHeader}>Seleccioná Categoría</h1>
+          
+          <p style={styles.subtitulo}>Infantiles</p>
+          {CATEGORIAS.slice(0, 7).map((cat) => (
+            <button key={cat.valor} onClick={() => { setCategoriaSeleccionada(cat); setPantalla("planilla"); }} style={styles.btnCat}>
+              {cat.label} <span>›</span>
+            </button>
+          ))}
+
+          <p style={{ ...styles.subtitulo, marginTop: "20px" }}>Juveniles</p>
+          {CATEGORIAS.slice(7).map((cat) => (
+            <button key={cat.valor} onClick={() => { setCategoriaSeleccionada(cat); setPantalla("planilla"); }} style={styles.btnCat}>
+              {cat.label} <span>›</span>
+            </button>
+          ))}
         </div>
       </div>
     );
   }
 
+  // --- VISTA DE LA PLANILLA (TABLA) ---
   return (
     <div style={{ background: "#111", minHeight: "100vh", paddingBottom: "100px" }}>
       <Navbar />
       <div style={{ padding: "24px 16px" }}>
-        <button
-          onClick={() => setPantalla("categorias")}
-          style={{ background: "#1e1e1e", border: "1px solid #2e2e2e", borderRadius: "10px", color: "#fff", fontSize: "14px", padding: "8px 16px", marginBottom: "20px", cursor: "pointer" }}
-        >
-          ← Atrás
-        </button>
-        <h1 style={{ fontSize: "22px", fontWeight: 700, marginBottom: "24px", color: "#fff", textTransform: "uppercase" }}>
-          Planilla: {categoriaSeleccionada.label}
-        </h1>
+        <button onClick={() => setPantalla("categorias")} style={styles.btnAtras}>← Categorías</button>
+        <h1 style={styles.tituloPlanilla}>{categoriaSeleccionada.label}</h1>
 
         {asistencias.length === 0 ? (
-          <p style={{ color: "#666" }}>No hay asistencias registradas para esta categoría.</p>
+          <p style={{ color: "#666", textAlign: "center", marginTop: "40px" }}>No hay entrenamientos registrados.</p>
         ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "400px" }}>
+          <div style={{ overflowX: "auto", background: "#1a1a1a", borderRadius: "15px", border: "1px solid #333" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "600px" }}>
               <thead>
-                <tr>
-                  <th style={{ padding: "12px 16px", textAlign: "left", color: "#888", fontSize: "13px", borderBottom: "1px solid #2e2e2e", borderRight: "1px solid #2e2e2e", position: "sticky", left: 0, background: "#111" }}>
-                    Jugador
-                  </th>
+                <tr style={{ background: "#222" }}>
+                  <th style={styles.thJugador}>JUGADOR</th>
                   {asistencias.map((a) => (
-                    <th key={a.id} style={{ padding: "12px 10px", textAlign: "center", color: "#888", fontSize: "13px", borderBottom: "1px solid #2e2e2e", borderRight: "1px solid #2e2e2e", whiteSpace: "nowrap" }}>
-                      {a.fecha.split("/").slice(0, 2).join("/")}
-                    </th>
+                    <th key={a.id} style={styles.thFecha}>{formatoCorto(a.fecha)}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {jugadores.map((jugador) => (
-                  <tr key={jugador.id} style={{ borderBottom: "1px solid #1e1e1e" }}>
-                    <td style={{ padding: "12px 16px", color: "#fff", fontSize: "14px", fontWeight: 600, textTransform: "uppercase", position: "sticky", left: 0, background: "#111", borderRight: "1px solid #2e2e2e" }}>
-                      {jugador.APELLIDO}
-                    </td>
+                  <tr key={jugador.id} style={{ borderBottom: "1px solid #222" }}>
+                    <td style={styles.tdNombre}>{jugador.APELLIDO}, {jugador.NOMBRE}</td>
                     {asistencias.map((a) => (
-                      <td key={a.id} style={{ padding: "12px 10px", textAlign: "center", borderRight: "1px solid #2e2e2e" }}>
-                        {estaPresente(jugador, a) ? (
-                          <span style={{ color: "#16a34a", fontSize: "18px", fontWeight: 700 }}>✓</span>
-                        ) : (
-                          <span style={{ color: "#dc2626", fontSize: "18px", fontWeight: 700 }}>✗</span>
-                        )}
+                      <td key={a.id} style={styles.tdCheck}>
+                        {estaPresente(jugador, a) ? 
+                          <span style={{ color: "#16a34a" }}>✓</span> : 
+                          <span style={{ color: "#dc2626" }}>✗</span>
+                        }
                       </td>
                     ))}
                   </tr>
@@ -229,14 +196,23 @@ URL.revokeObjectURL(url);
         )}
       </div>
 
-      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, padding: "16px", background: "#111", borderTop: "1px solid #2e2e2e" }}>
-        <button
-          onClick={exportarPDF}
-          style={{ width: "100%", padding: "16px", background: "#2563eb", border: "none", borderRadius: "12px", color: "#fff", fontSize: "16px", fontWeight: 700, cursor: "pointer" }}
-        >
-          Exportar a PDF
-        </button>
+      <div style={styles.footer}>
+        <button onClick={exportarPDF} style={styles.btnPdf}>EXPORTAR PLANILLA PDF</button>
       </div>
     </div>
   );
 }
+
+const styles = {
+  btnAtras: { background: "#1e1e1e", border: "1px solid #333", borderRadius: "10px", color: "#fff", fontSize: "12px", padding: "8px 16px", marginBottom: "20px", cursor: "pointer" },
+  tituloHeader: { fontSize: "24px", fontWeight: "900", color: "#fff", marginBottom: "20px" },
+  subtitulo: { color: "#555", fontSize: "11px", fontWeight: "bold", textTransform: "uppercase", marginBottom: "10px" },
+  btnCat: { width: "100%", padding: "18px", background: "#1a1a1a", border: "1px solid #333", borderRadius: "12px", color: "#fff", fontSize: "14px", textAlign: "left", display: "flex", justifyContent: "space-between", marginBottom: "8px" },
+  tituloPlanilla: { fontSize: "20px", fontWeight: "900", color: "#fff", marginBottom: "20px" },
+  thJugador: { padding: "15px", textAlign: "left", color: "#aaa", fontSize: "11px", position: "sticky", left: 0, background: "#222", zIndex: 2 },
+  thFecha: { padding: "12px", color: "#aaa", fontSize: "11px", borderLeft: "1px solid #333" },
+  tdNombre: { padding: "12px 15px", color: "#fff", fontSize: "12px", fontWeight: "bold", position: "sticky", left: 0, background: "#1a1a1a", borderRight: "1px solid #333" },
+  tdCheck: { textAlign: "center", fontSize: "16px", fontWeight: "bold", borderLeft: "1px solid #222" },
+  footer: { position: "fixed", bottom: 0, left: 0, right: 0, padding: "16px", background: "#111", borderTop: "1px solid #333" },
+  btnPdf: { width: "100%", padding: "16px", background: "#33b5e5", border: "none", borderRadius: "12px", color: "#000", fontSize: "14px", fontWeight: "900" }
+};

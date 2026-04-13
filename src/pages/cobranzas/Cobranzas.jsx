@@ -24,138 +24,172 @@ export default function Cobranzas() {
     { id: "12", nombre: "DICIEMBRE" }
   ];
 
-  // 1. Carga inicial de datos (Texto y Asistencias)
+  // --- FUNCIONES DE APOYO (HELPER FUNCTIONS) ---
+
+  const normalizarTexto = (texto) => {
+    return String(texto || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "") // Quita acentos
+      .replace(/[^a-z0-9]/g, "")      // Quita símbolos/espacios
+      .trim();
+  };
+
+  const obtenerAnioNacimiento = (fechaStr) => {
+    if (!fechaStr) return "";
+    const match = fechaStr.match(/\d{4}/);
+    return match ? match[0] : "";
+  };
+
+  const parsearFecha = (fechaStr) => {
+    if (!fechaStr) return null;
+    const unificada = fechaStr.replace(/\//g, "-");
+    const partes = unificada.split("-");
+    if (partes.length < 2) return null;
+    return {
+      dia: parseInt(partes[0]),
+      mes: parseInt(partes[1]),
+      anio: partes[2] ? parseInt(partes[2]) : 2026
+    };
+  };
+
+  // --- CARGA DE DATOS ---
+
   const cargarDatos = useCallback(async () => {
     setLoading(true);
     try {
-      const jugSnap = await getDocs(collection(db, "JUGADORES"));
-      const asisSnap = await getDocs(collection(db, "ASISTENCIAS"));
-      const pagosSnap = await getDocs(collection(db, "pagos_plus"));
+      const [jugSnap, asisSnap, pagosSnap] = await Promise.all([
+        getDocs(collection(db, "JUGADORES")),
+        getDocs(collection(db, "ASISTENCIAS")),
+        getDocs(collection(db, "pagos_plus"))
+      ]);
 
       setListaJugadores(jugSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setAsistenciasAnuales(asisSnap.docs.map(doc => doc.data()));
       setPagosAnuales(pagosSnap.docs.map(doc => doc.data()));
     } catch (err) {
-      console.error("Error al conectar con Firebase:", err);
+      console.error("Error cargando Firebase:", err);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    cargarDatos();
-  }, [cargarDatos]);
+  useEffect(() => { cargarDatos(); }, [cargarDatos]);
 
-  // 2. Función para abrir la ficha y buscar la foto por DNI en el momento
+  // --- LÓGICA DE INTERFAZ ---
+
   const abrirFicha = async (jugador) => {
     setJugadorSeleccionado(jugador);
-    setFotoUrlSeleccionada(""); // Limpia la foto anterior
-    
+    setFotoUrlSeleccionada("");
     const dni = String(jugador.DNI || "").trim();
-    let urlEncontrada = "https://cdn-icons-png.flaticon.com/512/149/149071.png"; // Default
-
+    let urlEncontrada = "https://cdn-icons-png.flaticon.com/512/149/149071.png";
+    
     if (dni) {
       const extensiones = [".jpg", ".JPG", ".png", ".jpeg"];
       for (const ext of extensiones) {
         try {
-          const fotoRef = ref(storage, `fotos_jugadores/${dni}${ext}`);
-          urlEncontrada = await getDownloadURL(fotoRef);
-          break; // Si la encuentra, sale del bucle
-        } catch { /* Sigue probando */ }
+          const url = await getDownloadURL(ref(storage, `fotos_jugadores/${dni}${ext}`));
+          urlEncontrada = url;
+          break;
+        } catch { continue; }
       }
     }
     setFotoUrlSeleccionada(urlEncontrada);
   };
 
-  // 3. Lógica del buscador (Apellido o DNI)
-  const jugadoresFiltrados = listaJugadores.filter(j => 
-    `${j.NOMBRE} ${j.APELLIDO}`.toLowerCase().includes(busqueda.toLowerCase()) || 
-    String(j.DNI).includes(busqueda)
-  );
-
-  // 4. Cálculo del cuadro anual (Feb a Dic)
   const calcularResumenAnual = (jugador) => {
-    const nombreCompleto = `${jugador.NOMBRE} ${jugador.APELLIDO}`.toUpperCase().trim();
-    const dniJug = String(jugador.DNI || "");
+    const nombrePibe = normalizarTexto(jugador.NOMBRE);
+    const apellidoPibe = normalizarTexto(jugador.APELLIDO);
+    const anioCat = obtenerAnioNacimiento(jugador["FECHA NACIMIENTO"]);
+    const dniJug = String(jugador.DNI || "").trim();
 
     return mesesCiclo.map(m => {
-      // Filtramos asistencias de este mes específico
-      const countAsis = asistenciasAnuales.filter(asis => {
-        const f = asis.fecha || "";
-        if (!f.includes(`-${m.id}-2026`)) return false;
+      const mesNum = parseInt(m.id);
 
-        // Buscamos el nombre en el array 'presentes' y en los campos sueltos (5, 6, 7...)
-        const presentesEnDoc = [
+      // 1. Filtrar entrenamientos por Mes y Categoría (Año de nacimiento)
+      const entrenamientosMes = asistenciasAnuales.filter(asis => {
+        const f = parsearFecha(asis.fecha);
+        const catAsis = normalizarTexto(asis.categoria);
+        return f && f.mes === mesNum && f.anio === 2026 && catAsis.includes(anioCat);
+      });
+
+      // 2. Contar presentes (Buscamos nombre y apellido en el doc de asistencia)
+      const countAsis = entrenamientosMes.filter(asis => {
+        const presentesRaw = [
           ...(asis.presentes || []),
           ...Object.values(asis).filter(v => typeof v === 'string' && v.length > 5 && v !== asis.fecha)
-        ].map(n => n.toUpperCase().trim());
+        ].map(p => normalizarTexto(p));
 
-        return presentesEnDoc.includes(nombreCompleto);
+        return presentesRaw.some(p => p.includes(nombrePibe) && p.includes(apellidoPibe));
       }).length;
 
-      // Verificamos si existe un pago registrado para ese mes
-      const pagado = pagosAnuales.some(p => String(p.dni) === dniJug && p.mesAnio === `2026-${m.id}`);
+      const countAusentes = entrenamientosMes.length - countAsis;
+      const pagado = pagosAnuales.some(p => String(p.dni || "").trim() === dniJug && p.mesAnio === `2026-${m.id}`);
 
-      return { ...m, countAsis, pagado };
+      return { ...m, countAsis, countAusentes, pagado, total: entrenamientosMes.length };
     });
   };
+
+  const filtrados = listaJugadores.filter(j => 
+    normalizarTexto(`${j.NOMBRE} ${j.APELLIDO}`).includes(normalizarTexto(busqueda)) || 
+    String(j.DNI).includes(busqueda)
+  );
 
   return (
     <div style={styles.page}>
       <Navbar />
       <div style={styles.container}>
-        <h1 style={styles.titulo}>GESTIÓN DE PLUS</h1>
-        
-        <div style={styles.searchWrapper}>
-          <input 
-            type="text" 
-            placeholder="Buscar por Apellido o DNI..." 
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            style={styles.searchInput}
-          />
-        </div>
+        <h1 style={styles.titulo}>GESTIÓN DE COBRANZA</h1>
+        <input 
+          placeholder="Buscar por apellido o DNI..." 
+          value={busqueda} 
+          onChange={(e) => setBusqueda(e.target.value)} 
+          style={styles.searchInput} 
+        />
 
-        {loading ? <p style={styles.info}>Cargando lista de jugadores...</p> : (
+        {loading ? <p style={styles.info}>Cargando datos...</p> : (
           <div style={styles.grid}>
-            {jugadoresFiltrados.map(jug => (
+            {filtrados.map(jug => (
               <div key={jug.id} style={styles.fichaSimple} onClick={() => abrirFicha(jug)}>
                 <div style={styles.datos}>
-                    <p style={styles.nombre}>{jug.APELLIDO}, {jug.NOMBRE}</p>
-                    <p style={styles.dni}>DNI: {jug.DNI} • {jug.CATEGORIA || 'S/C'}</p>
+                    <p style={styles.nombreLista}>{jug.APELLIDO}, {jug.NOMBRE}</p>
+                    <p style={styles.dniLista}>DNI: {jug.DNI} • CAT {obtenerAnioNacimiento(jug["FECHA NACIMIENTO"])}</p>
                 </div>
-                <div style={styles.badgeVer}>VER HISTORIAL</div>
+                <div style={styles.badgeVer}>HISTORIAL</div>
               </div>
             ))}
           </div>
         )}
 
-        {/* --- MODAL: DETALLE ANUAL --- */}
+        {/* --- MODAL DE DETALLE --- */}
         {jugadorSeleccionado && (
           <div style={styles.overlay} onClick={() => setJugadorSeleccionado(null)}>
             <div style={styles.modal} onClick={e => e.stopPropagation()}>
               <button style={styles.closeBtn} onClick={() => setJugadorSeleccionado(null)}>✕</button>
               
               <div style={styles.modalHeader}>
-                <div style={styles.marcoFoto}>
-                  <img src={fotoUrlSeleccionada} style={styles.foto} alt="pibe" />
-                </div>
+                <div style={styles.marcoFoto}><img src={fotoUrlSeleccionada} style={styles.foto} alt="foto" /></div>
                 <h2 style={styles.nombreModal}>{jugadorSeleccionado.NOMBRE} {jugadorSeleccionado.APELLIDO}</h2>
+                <p style={styles.catModal}>CATEGORÍA {obtenerAnioNacimiento(jugadorSeleccionado["FECHA NACIMIENTO"])}</p>
                 <p style={styles.dniModal}>DNI: {jugadorSeleccionado.DNI}</p>
               </div>
 
               <div style={styles.tabla}>
                 <div style={styles.tablaHeader}>
-                  <span>MES</span>
-                  <span>ASISTENCIAS</span>
-                  <span>ESTADO</span>
+                  <span style={{flex: 1}}>MES</span>
+                  <span style={{flex: 2, textAlign: 'center'}}>PRES. | AUSENTES</span>
+                  <span style={{flex: 1, textAlign: 'right'}}>PLUS</span>
                 </div>
                 {calcularResumenAnual(jugadorSeleccionado).map(res => (
                   <div key={res.id} style={styles.fila}>
                     <span style={styles.mesName}>{res.nombre}</span>
-                    <span style={styles.asisCount}>{res.countAsis} ⚽</span>
-                    <span style={res.pagado ? styles.ok : (res.countAsis > 0 ? styles.deuda : styles.vacio)}>
-                      {res.pagado ? "PAGADO" : (res.countAsis > 0 ? "DEUDA" : "---")}
+                    <span style={styles.asisResumen}>
+                        <span style={{color: res.countAsis > 0 ? '#16a34a' : '#444'}}>{res.countAsis} ✅</span>
+                        <span style={{color: '#222', margin: '0 8px'}}>|</span>
+                        <span style={{color: res.countAusentes > 0 ? '#ef4444' : '#444'}}>{res.countAusentes} ❌</span>
+                    </span>
+                    <span style={res.pagado ? styles.ok : (res.total > 0 ? styles.deuda : styles.vacio)}>
+                      {res.pagado ? "PAGADO" : (res.total > 0 ? "DEUDA" : "---")}
                     </span>
                   </div>
                 ))}
@@ -172,30 +206,30 @@ export default function Cobranzas() {
 const styles = {
   page: { background: "#000", minHeight: "100vh", color: "#fff", paddingBottom: "100px" },
   container: { padding: "16px", maxWidth: "500px", margin: "0 auto" },
-  titulo: { fontSize: "20px", fontWeight: "900", textAlign: "center", marginBottom: "20px", color: "#fff" },
-  searchWrapper: { marginBottom: "20px" },
-  searchInput: { width: "100%", background: "#111", border: "1px solid #333", color: "#fff", padding: "16px", borderRadius: "15px", fontSize: "16px", outline: "none", boxSizing: "border-box" },
+  titulo: { fontSize: "18px", fontWeight: "900", textAlign: "center", marginBottom: "20px", textTransform: "uppercase" },
+  searchInput: { width: "100%", background: "#111", border: "1px solid #333", color: "#fff", padding: "15px", borderRadius: "12px", marginBottom: "20px", outline: "none", boxSizing: "border-box" },
   grid: { display: "flex", flexDirection: "column", gap: "10px" },
-  fichaSimple: { background: "#111", border: "1px solid #222", borderRadius: "12px", display: "flex", alignItems: "center", padding: "15px", cursor: "pointer" },
+  fichaSimple: { background: "#111", border: "1px solid #222", borderRadius: "12px", display: "flex", alignItems: "center", padding: "12px", cursor: "pointer" },
   datos: { flex: 1 },
-  nombre: { margin: 0, fontWeight: "900", fontSize: "15px" },
-  dni: { margin: 0, fontSize: "11px", color: "#666" },
-  badgeVer: { fontSize: "9px", fontWeight: "900", color: "#33b5e5", border: "1px solid #33b5e5", padding: "5px 10px", borderRadius: "6px" },
-  overlay: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.9)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000, padding: "15px" },
-  modal: { background: "#0a0a0a", width: "100%", maxWidth: "400px", borderRadius: "24px", padding: "20px", position: "relative", border: "1px solid #333", maxHeight: "85vh", overflowY: "auto" },
-  closeBtn: { position: "absolute", top: "15px", right: "15px", background: "none", border: "none", color: "#fff", fontSize: "24px" },
+  nombreLista: { margin: 0, fontWeight: "bold", fontSize: "14px", textTransform: "uppercase" },
+  dniLista: { margin: 0, fontSize: "11px", color: "#666" },
+  badgeVer: { fontSize: "9px", color: "#33b5e5", border: "1px solid #33b5e5", padding: "4px 8px", borderRadius: "5px", fontWeight: "bold" },
+  overlay: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.95)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 },
+  modal: { background: "#0a0a0a", width: "95%", maxWidth: "400px", borderRadius: "20px", padding: "20px", border: "1px solid #333", maxHeight: "85vh", overflowY: "auto" },
+  closeBtn: { position: "absolute", top: "15px", right: "15px", background: "none", border: "none", color: "#fff", fontSize: "22px" },
   modalHeader: { textAlign: "center", marginBottom: "20px" },
-  marcoFoto: { width: "100px", height: "100px", margin: "0 auto 10px auto", borderRadius: "20px", overflow: "hidden", border: "2px solid #33b5e5", background: "#111" },
+  marcoFoto: { width: "90px", height: "90px", margin: "0 auto 10px auto", borderRadius: "20px", overflow: "hidden", border: "2px solid #33b5e5", background: "#111" },
   foto: { width: "100%", height: "100%", objectFit: "cover" },
-  nombreModal: { margin: 0, fontSize: "20px", fontWeight: "900" },
-  dniModal: { margin: 0, fontSize: "12px", color: "#666" },
+  nombreModal: { margin: 0, fontSize: "22px", fontWeight: "900", color: "#fff" }, // NOMBRE EN BLANCO
+  catModal: { margin: "2px 0", fontSize: "14px", color: "#33b5e5", fontWeight: "bold" },
+  dniModal: { margin: 0, fontSize: "12px", color: "#555" },
   tabla: { display: "flex", flexDirection: "column", gap: "5px" },
-  tablaHeader: { display: "flex", justifyContent: "space-between", padding: "0 10px 5px 10px", color: "#444", fontSize: "10px", fontWeight: "bold" },
+  tablaHeader: { display: "flex", padding: "0 10px 5px 10px", color: "#444", fontSize: "10px", fontWeight: "bold" },
   fila: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px", background: "#111", borderRadius: "10px", border: "1px solid #222" },
-  mesName: { fontSize: "11px", fontWeight: "bold", width: "80px" },
-  asisCount: { fontSize: "11px", color: "#33b5e5", fontWeight: "bold" },
-  ok: { fontSize: "10px", color: "#16a34a", fontWeight: "bold" },
-  deuda: { fontSize: "10px", color: "#ef4444", fontWeight: "bold" },
-  vacio: { fontSize: "10px", color: "#333" },
-  info: { textAlign: "center", marginTop: "50px", color: "#666" }
+  mesName: { fontSize: "11px", fontWeight: "bold", flex: 1 },
+  asisResumen: { flex: 2, textAlign: 'center', fontSize: '11px', fontWeight: 'bold' },
+  ok: { fontSize: "10px", color: "#16a34a", fontWeight: "bold", flex: 1, textAlign: 'right' },
+  deuda: { fontSize: "10px", color: "#ef4444", fontWeight: "bold", flex: 1, textAlign: 'right' },
+  vacio: { fontSize: "10px", color: "#333", flex: 1, textAlign: 'right' },
+  info: { textAlign: "center", color: "#666", marginTop: "50px" }
 };

@@ -23,7 +23,8 @@ import MenuJornada from "./pages/subcomision/Jornada/MenuJornada";
 import ConfigPrecios from "./pages/subcomision/Jornada/ConfigPrecios";
 import ControlJornada from "./pages/subcomision/Jornada/ControlJornada";
 import VentaBuffet from "./pages/subcomision/Jornada/VentaBuffet";
-import HistorialJornada from "./pages/subcomision/Jornada/HistorialJornada"; // <--- AGREGADO
+import HistorialBuffet from "./pages/subcomision/Jornada/HistorialBuffet"; // <--- NUEVO: Detalle de compras
+import HistorialJornada from "./pages/subcomision/Jornada/HistorialJornada"; // <--- Cierre general
 
 // COMPONENTE DE PROTECCIÓN
 const ProtectedRoute = ({ children }) => {
@@ -65,7 +66,12 @@ function App() {
         <Route path="/subcomision/jornada/precios" element={<ProtectedRoute><ConfigPrecios /></ProtectedRoute>} />
         <Route path="/subcomision/jornada/control" element={<ProtectedRoute><ControlJornada /></ProtectedRoute>} />
         <Route path="/subcomision/jornada/buffet" element={<ProtectedRoute><VentaBuffet /></ProtectedRoute>} />
-        <Route path="/subcomision/jornada/historial" element={<ProtectedRoute><HistorialJornada /></ProtectedRoute>} /> {/* <--- AGREGADO */}
+        
+        {/* DETALLE DE CADA COMPRA DEL BUFFET */}
+        <Route path="/subcomision/jornada/buffet-detalle" element={<ProtectedRoute><HistorialBuffet /></ProtectedRoute>} /> 
+
+        {/* CIERRE GENERAL DE LA JORNADA (ENTRADAS, BUFFET, GASTOS) */}
+        <Route path="/subcomision/jornada/historial" element={<ProtectedRoute><HistorialJornada /></ProtectedRoute>} /> 
 
         {/* Redirección por seguridad */}
         <Route path="*" element={<Navigate to="/" />} />
