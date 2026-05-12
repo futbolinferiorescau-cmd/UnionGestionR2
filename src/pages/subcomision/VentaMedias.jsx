@@ -13,8 +13,8 @@ export default function VentaMedias() {
   const [busquedaPibe, setBusquedaPibe] = useState("");
   const [pibeSeleccionado, setPibeSeleccionado] = useState(null);
   const [idVentaAbierta, setIdVentaAbierta] = useState(null);
+  const [verPedido, setVerPedido] = useState(false); // Estado para mostrar/ocultar el pedido
 
-  // Estados para la carga de producto
   const [tipoMedia, setTipoMedia] = useState(TIPOS[0]);
   const [talle, setTalle] = useState(TALLES[0]);
   const [cantidad, setCantidad] = useState(1);
@@ -39,11 +39,26 @@ export default function VentaMedias() {
     fetchData();
   }, []);
 
-  // --- 💰 CÁLCULOS DE BALANCE (SUMANDO EL CAMPO 'saldo' DE TU FIREBASE) ---
+  // --- 📝 LÓGICA PARA AGRUPAR EL PEDIDO ---
+  const generarResumenPedido = () => {
+    const resumen = {};
+    ventas.forEach(venta => {
+      venta.items?.forEach(item => {
+        const clave = `${item.tipo}-${item.talle}`;
+        if (!resumen[clave]) {
+          resumen[clave] = { tipo: item.tipo, talle: item.talle, cantidadTotal: 0 };
+        }
+        resumen[clave].cantidadTotal += Number(item.cantidad);
+      });
+    });
+    return Object.values(resumen).sort((a, b) => a.tipo.localeCompare(b.tipo));
+  };
+
+  const listaPedido = generarResumenPedido();
+
+  // --- 💰 CÁLCULOS DE BALANCE ---
   const totalPagadoGlobal = ventas.reduce((acc, v) => acc + (Number(v.pagado) || 0), 0);
   const totalDeudaGlobal = ventas.reduce((acc, v) => acc + (Number(v.saldo) || 0), 0);
-
-  // Calculamos el total de lo que se está armando en el carrito ahora
   const totalCompraActual = carrito.reduce((acc, item) => acc + item.subtotal, 0);
 
   const agregarAlCarrito = () => {
@@ -67,21 +82,19 @@ export default function VentaMedias() {
     try {
       const pagadoHoy = Number(entregaTotal) || 0;
       const saldoFinal = totalCompraActual - pagadoHoy;
-
       const ventaData = {
         jugadorId: pibeSeleccionado.DNI,
         nombre: `${pibeSeleccionado.APELLIDO} ${pibeSeleccionado.NOMBRE}`,
         items: carrito,
         total: totalCompraActual,
         pagado: pagadoHoy,
-        saldo: saldoFinal, // Guardamos el saldo para que la suma de arriba lo tome
+        saldo: saldoFinal,
         fecha: serverTimestamp(),
       };
-
       await addDoc(collection(db, "VENTA_MEDIAS"), ventaData);
       alert("¡Venta registrada!");
       window.location.reload(); 
-    } catch  { alert("Error al guardar"); } finally { setCargando(false); }
+    } catch { alert("Error al guardar"); } finally { setCargando(false); }
   };
 
   const eliminarVenta = async (e, id) => {
@@ -100,7 +113,6 @@ export default function VentaMedias() {
         <button onClick={() => navigate(-1)} style={styles.btnAtras}>← VOLVER</button>
         <h2 style={styles.titulo}>VENTA INDUMENTARIA</h2>
 
-        {/* --- PANEL DE BALANCE (TOTAL DE SALDOS) --- */}
         <div style={styles.panelBalance}>
           <div style={styles.colBalance}>
             <span style={styles.labelBalance}>DINERO EN CAJA</span>
@@ -112,101 +124,121 @@ export default function VentaMedias() {
           </div>
         </div>
 
-        {/* --- BUSCADOR DE JUGADORES --- */}
-        <div style={{...styles.card, marginTop: "20px"}}>
-          <p style={styles.label}>1. JUGADOR</p>
-          {!pibeSeleccionado ? (
-            <>
-              <input placeholder="Buscar por apellido..." value={busquedaPibe} onChange={e => setBusquedaPibe(e.target.value)} style={styles.input} />
-              {busquedaPibe && (
-                <div style={styles.sugerencias}>
-                  {jugadores.filter(j => j.APELLIDO.toLowerCase().includes(busquedaPibe.toLowerCase())).slice(0, 5).map(j => (
-                    <div key={j.DNI} onClick={() => setPibeSeleccionado(j)} style={styles.sugItem}>{j.APELLIDO} {j.NOMBRE}</div>
-                  ))}
+        {/* --- BOTÓN PARA ACTIVAR LISTA DE PEDIDO --- */}
+        <button 
+          onClick={() => setVerPedido(!verPedido)} 
+          style={{...styles.btnAgregar, background: verPedido ? "#FF9500" : "#0A84FF", color: "white", marginTop: "15px"}}
+        >
+          {verPedido ? "✕ CERRAR LISTADO" : "📋 GENERAR LISTA PARA PEDIDO"}
+        </button>
+
+        {/* --- VISTA DE PEDIDO AGRUPADO --- */}
+        {verPedido && (
+          <div style={{...styles.card, marginTop: "20px", border: "2px solid #0A84FF"}}>
+            <h3 style={{fontSize: "14px", textAlign: "center", color: "#0A84FF", marginBottom: "15px"}}>RESUMEN DE MERCADERÍA</h3>
+            {listaPedido.length > 0 ? listaPedido.map((item, idx) => (
+              <div key={idx} style={styles.itemPedido}>
+                <div style={{flex: 1}}>
+                  <p style={{margin: 0, fontWeight: "bold"}}>{item.tipo}</p>
+                  <p style={{margin: 0, fontSize: "11px", color: "#888"}}>{item.talle}</p>
                 </div>
-              )}
-            </>
-          ) : (
-            <div style={styles.pibeElegido}>
-              <span>{pibeSeleccionado.APELLIDO} {pibeSeleccionado.NOMBRE}</span>
-              <button onClick={() => setPibeSeleccionado(null)} style={{color: "#FF453A", background: "none", border: "none", fontWeight: "bold"}}>CAMBIAR</button>
-            </div>
-          )}
-
-          {pibeSeleccionado && (
-            <div style={{ marginTop: "15px", borderTop: "1px solid #333", paddingTop: "15px" }}>
-              <p style={styles.label}>2. AGREGAR PRODUCTO</p>
-              <select value={tipoMedia} onChange={e => setTipoMedia(e.target.value)} style={styles.input}>
-                {TIPOS.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-              <select value={talle} onChange={e => setTalle(e.target.value)} style={styles.input}>
-                {TALLES.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-              <div style={{ display: "flex", gap: "10px" }}>
-                <input type="number" value={cantidad} onChange={e => setCantidad(e.target.value)} style={styles.input} placeholder="Cant" />
-                <input type="number" value={precioManual} onChange={e => setPrecioManual(e.target.value)} style={styles.input} placeholder="Precio" />
+                <div style={styles.badgeCantidad}>{item.cantidadTotal}u.</div>
               </div>
-              <button onClick={agregarAlCarrito} style={styles.btnAgregar}>+ AGREGAR AL CARRITO</button>
-            </div>
-          )}
-        </div>
-
-        {/* --- RESUMEN DEL CARRITO --- */}
-        {carrito.length > 0 && (
-          <div style={styles.resumenCarrito}>
-            {carrito.map(item => (
-              <div key={item.id} style={styles.itemCarrito}>
-                <span>{item.cantidad}x {item.tipo} ({item.talle})</span>
-                <button onClick={() => quitarDelCarrito(item.id)} style={{background: "none", border: "none", color: "#FF453A"}}>✕</button>
-              </div>
-            ))}
-            <div style={styles.totalCaja}>
-              <p style={{fontWeight: "900", color: "#33b5e5", textAlign: "right"}}>TOTAL: ${totalCompraActual}</p>
-              <label style={styles.label}>PAGA HOY ($):</label>
-              <input type="number" value={entregaTotal} onChange={e => setEntregaTotal(e.target.value)} style={styles.input} />
-              <button onClick={guardarVentaFinal} disabled={cargando} style={styles.btnFinalizar}>CONFIRMAR VENTA</button>
-            </div>
+            )) : <p style={{textAlign: "center", fontSize: "12px"}}>No hay ventas para resumir.</p>}
           </div>
         )}
 
-        {/* --- HISTORIAL --- */}
-        <h3 style={{ marginTop: "40px", fontSize: "12px", color: "#666", letterSpacing: "1px" }}>HISTORIAL</h3>
-        <input placeholder="Buscar en historial..." value={filtroNombre} onChange={e => setFiltroNombre(e.target.value)} style={{ ...styles.input, marginBottom: "15px" }} />
-
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          {ventas.filter(v => v.nombre.toLowerCase().includes(filtroNombre.toLowerCase())).map(v => (
-            <div key={v.id} style={{ display: "flex", flexDirection: "column" }}>
-              <div onClick={() => setIdVentaAbierta(idVentaAbierta === v.id ? null : v.id)} style={{...styles.itemHistorial, borderBottom: idVentaAbierta === v.id ? "none" : "1px solid #222", borderRadius: idVentaAbierta === v.id ? "15px 15px 0 0" : "15px"}}>
-                <div style={{ flex: 1 }}>
-                  <p style={{ margin: 0, fontWeight: "bold", fontSize: "14px" }}>{v.nombre}</p>
-                  <p style={{ margin: 0, fontSize: "10px", color: "#555" }}>{v.fecha?.toDate ? v.fecha.toDate().toLocaleDateString() : "Hoy"}</p>
-                </div>
-                <div style={{ textAlign: "right", marginRight: "12px" }}>
-                  <p style={{ margin: 0, fontWeight: "900", fontSize: "14px", color: (Number(v.saldo) || 0) <= 0 ? "#4CD964" : "#FF9500" }}>
-                    {(Number(v.saldo) || 0) <= 0 ? "PAGADO" : `$${v.saldo}`}
-                  </p>
-                </div>
-                <button onClick={(e) => eliminarVenta(e, v.id)} style={styles.btnBorrar}>🗑️</button>
-              </div>
-
-              {idVentaAbierta === v.id && (
-                <div style={styles.fichaDetalle}>
-                  {v.items?.map((it, idx) => (
-                    <div key={idx} style={styles.ticketItem}>
-                      <p style={{margin: 0}}>{it.cantidad}x {it.tipo} ({it.talle})</p>
-                      <p style={{margin: 0, textAlign: "right"}}>${it.subtotal}</p>
+        {/* El resto solo se muestra si NO estamos viendo el pedido para no marear */}
+        {!verPedido && (
+          <>
+            <div style={{...styles.card, marginTop: "20px"}}>
+              <p style={styles.label}>1. JUGADOR</p>
+              {!pibeSeleccionado ? (
+                <>
+                  <input placeholder="Buscar por apellido..." value={busquedaPibe} onChange={e => setBusquedaPibe(e.target.value)} style={styles.input} />
+                  {busquedaPibe && (
+                    <div style={styles.sugerencias}>
+                      {jugadores.filter(j => j.APELLIDO.toLowerCase().includes(busquedaPibe.toLowerCase())).map(j => (
+                        <div key={j.DNI} onClick={() => setPibeSeleccionado(j)} style={styles.sugItem}>{j.APELLIDO} {j.NOMBRE}</div>
+                      ))}
                     </div>
-                  ))}
-                  <div style={styles.lineaTicket}></div>
-                  <div style={{display: "flex", justifyContent: "space-between", fontSize: "12px"}}>
-                    <span>TOTAL: ${v.total}</span>
-                    <span style={{color: "#4CD964"}}>PAGÓ: ${v.pagado}</span>
+                  )}
+                </>
+              ) : (
+                <div style={styles.pibeElegido}>
+                  <span>{pibeSeleccionado.APELLIDO} {pibeSeleccionado.NOMBRE}</span>
+                  <button onClick={() => setPibeSeleccionado(null)} style={{color: "#FF453A", background: "none", border: "none", fontWeight: "bold"}}>CAMBIAR</button>
+                </div>
+              )}
+
+              {pibeSeleccionado && (
+                <div style={{ marginTop: "15px", borderTop: "1px solid #333", paddingTop: "15px" }}>
+                  <p style={styles.label}>2. AGREGAR PRODUCTO</p>
+                  <select value={tipoMedia} onChange={e => setTipoMedia(e.target.value)} style={styles.input}>
+                    {TIPOS.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                  <select value={talle} onChange={e => setTalle(e.target.value)} style={styles.input}>
+                    {TALLES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                  <div style={{ display: "flex", gap: "10px" }}>
+                    <input type="number" value={cantidad} onChange={e => setCantidad(e.target.value)} style={styles.input} placeholder="Cant" />
+                    <input type="number" value={precioManual} onChange={e => setPrecioManual(e.target.value)} style={styles.input} placeholder="Precio" />
                   </div>
+                  <button onClick={agregarAlCarrito} style={styles.btnAgregar}>+ AGREGAR AL CARRITO</button>
                 </div>
               )}
             </div>
-          ))}
-        </div>
+
+            {carrito.length > 0 && (
+              <div style={styles.resumenCarrito}>
+                {carrito.map(item => (
+                  <div key={item.id} style={styles.itemCarrito}>
+                    <span>{item.cantidad}x {item.tipo} ({item.talle})</span>
+                    <button onClick={() => quitarDelCarrito(item.id)} style={{background: "none", border: "none", color: "#FF453A"}}>✕</button>
+                  </div>
+                ))}
+                <div style={styles.totalCaja}>
+                  <p style={{fontWeight: "900", color: "#33b5e5", textAlign: "right"}}>TOTAL: ${totalCompraActual}</p>
+                  <label style={styles.label}>PAGA HOY ($):</label>
+                  <input type="number" value={entregaTotal} onChange={e => setEntregaTotal(e.target.value)} style={styles.input} />
+                  <button onClick={guardarVentaFinal} disabled={cargando} style={styles.btnFinalizar}>CONFIRMAR VENTA</button>
+                </div>
+              </div>
+            )}
+
+            <h3 style={{ marginTop: "40px", fontSize: "12px", color: "#666", letterSpacing: "1px" }}>HISTORIAL</h3>
+            <input placeholder="Buscar en historial..." value={filtroNombre} onChange={e => setFiltroNombre(e.target.value)} style={{ ...styles.input, marginBottom: "15px" }} />
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              {ventas.filter(v => v.nombre.toLowerCase().includes(filtroNombre.toLowerCase())).map(v => (
+                <div key={v.id} style={{ display: "flex", flexDirection: "column" }}>
+                  <div onClick={() => setIdVentaAbierta(idVentaAbierta === v.id ? null : v.id)} style={{...styles.itemHistorial, borderBottom: idVentaAbierta === v.id ? "none" : "1px solid #222", borderRadius: idVentaAbierta === v.id ? "15px 15px 0 0" : "15px"}}>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ margin: 0, fontWeight: "bold", fontSize: "14px" }}>{v.nombre}</p>
+                      <p style={{ margin: 0, fontSize: "10px", color: "#555" }}>{v.fecha?.toDate ? v.fecha.toDate().toLocaleDateString() : "Hoy"}</p>
+                    </div>
+                    <div style={{ textAlign: "right", marginRight: "12px" }}>
+                      <p style={{ margin: 0, fontWeight: "900", fontSize: "14px", color: (Number(v.saldo) || 0) <= 0 ? "#4CD964" : "#FF9500" }}>
+                        {(Number(v.saldo) || 0) <= 0 ? "PAGADO" : `$${v.saldo}`}
+                      </p>
+                    </div>
+                    <button onClick={(e) => eliminarVenta(e, v.id)} style={styles.btnBorrar}>🗑️</button>
+                  </div>
+                  {idVentaAbierta === v.id && (
+                    <div style={styles.fichaDetalle}>
+                      {v.items?.map((it, idx) => (
+                        <div key={idx} style={styles.ticketItem}>
+                          <p style={{margin: 0}}>{it.cantidad}x {it.tipo} ({it.talle})</p>
+                          <p style={{margin: 0, textAlign: "right"}}>${it.subtotal}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -218,10 +250,10 @@ const styles = {
   card: { background: "#1e1e1e", padding: "20px", borderRadius: "20px", border: "1px solid #2e2e2e" },
   input: { background: "#111", border: "1px solid #333", color: "#fff", padding: "12px", borderRadius: "10px", width: "100%", boxSizing: "border-box", outline: "none", marginBottom: "8px" },
   label: { fontSize: "10px", color: "#888", marginBottom: "8px", fontWeight: "bold", letterSpacing: "1px" },
-  sugerencias: { background: "#222", borderRadius: "10px", overflow: "hidden", marginBottom: "10px" },
+  sugerencias: { background: "#222", borderRadius: "10px", maxHeight: "220px", overflowY: "auto", marginBottom: "10px" },
   sugItem: { padding: "12px", borderBottom: "1px solid #333", cursor: "pointer" },
   pibeElegido: { background: "#0A84FF22", padding: "12px", borderRadius: "12px", border: "1px solid #0A84FF", display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: "bold" },
-  btnAgregar: { background: "#fff", color: "#000", border: "none", padding: "12px", borderRadius: "10px", fontWeight: "bold", width: "100%", marginTop: "5px" },
+  btnAgregar: { background: "#fff", color: "#000", border: "none", padding: "12px", borderRadius: "10px", fontWeight: "bold", width: "100%", cursor: "pointer" },
   resumenCarrito: { marginTop: "20px", background: "#111", padding: "15px", borderRadius: "15px", border: "1px solid #222" },
   itemCarrito: { display: "flex", justifyContent: "space-between", fontSize: "12px", padding: "8px 0", borderBottom: "1px solid #222" },
   totalCaja: { marginTop: "15px", paddingTop: "15px" },
@@ -235,5 +267,8 @@ const styles = {
   montoDeuda: { fontSize: "22px", fontWeight: "900", color: "#FF9500" },
   fichaDetalle: { background: "#161616", padding: "15px", borderRadius: "0 0 15px 15px", border: "1px solid #222", borderTop: "none", marginBottom: "10px" },
   ticketItem: { display: "flex", justifyContent: "space-between", fontSize: "12px", marginBottom: "5px" },
-  lineaTicket: { height: "1px", background: "#333", margin: "10px 0", borderBottom: "1px dashed #444" }
+  
+  // --- ESTILOS PARA LA LISTA DE PEDIDO ---
+  itemPedido: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid #333" },
+  badgeCantidad: { background: "#0A84FF", color: "white", padding: "4px 10px", borderRadius: "8px", fontWeight: "bold", fontSize: "14px" }
 };
