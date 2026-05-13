@@ -13,7 +13,7 @@ export default function VentaMedias() {
   const [busquedaPibe, setBusquedaPibe] = useState("");
   const [pibeSeleccionado, setPibeSeleccionado] = useState(null);
   const [idVentaAbierta, setIdVentaAbierta] = useState(null);
-  const [verPedido, setVerPedido] = useState(false); // Estado para mostrar/ocultar el pedido
+  const [verPedido, setVerPedido] = useState(false);
 
   const [tipoMedia, setTipoMedia] = useState(TIPOS[0]);
   const [talle, setTalle] = useState(TALLES[0]);
@@ -31,13 +31,35 @@ export default function VentaMedias() {
       try {
         const snapJ = await getDocs(query(collection(db, "JUGADORES"), orderBy("APELLIDO", "asc")));
         setJugadores(snapJ.docs.map(d => ({ id: d.id, ...d.data() })));
-        
         const snapV = await getDocs(query(collection(db, "VENTA_MEDIAS"), orderBy("fecha", "desc")));
         setVentas(snapV.docs.map(d => ({ id: d.id, ...d.data() })));
       } catch (e) { console.error("Error al cargar:", e); }
     };
     fetchData();
   }, []);
+
+  // --- 📥 FUNCIÓN PARA DESCARGAR EL EXCEL ---
+  const descargarExcel = () => {
+    let csvContent = "data:text/csv;charset=utf-8,";
+    // Encabezados (usamos punto y coma para que Excel en español lo separe bien)
+    csvContent += "JUGADOR;PEDIDO;TOTAL;PAGADO;SALDO (DEUDA);FECHA\n";
+
+    ventas.forEach(v => {
+      const detalle = v.items?.map(it => `${it.cantidad}x ${it.tipo}`).join(" - ");
+      const fecha = v.fecha?.toDate ? v.fecha.toDate().toLocaleDateString() : "Hoy";
+      // Limpiamos comas por las dudas para no romper el formato
+      const fila = `${v.nombre};${detalle};${v.total};${v.pagado};${v.saldo};${fecha}\n`;
+      csvContent += fila;
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "Planilla_Deudas_Indumentaria.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   // --- 📝 LÓGICA PARA AGRUPAR EL PEDIDO ---
   const generarResumenPedido = () => {
@@ -63,11 +85,8 @@ export default function VentaMedias() {
 
   const agregarAlCarrito = () => {
     const nuevoItem = {
-      id: Date.now(),
-      tipo: tipoMedia,
-      talle: talle,
-      cantidad: Number(cantidad),
-      precioUnitario: Number(precioManual),
+      id: Date.now(), tipo: tipoMedia, talle: talle,
+      cantidad: Number(cantidad), precioUnitario: Number(precioManual),
       subtotal: Number(cantidad) * Number(precioManual)
     };
     setCarrito([...carrito, nuevoItem]);
@@ -124,13 +143,22 @@ export default function VentaMedias() {
           </div>
         </div>
 
-        {/* --- BOTÓN PARA ACTIVAR LISTA DE PEDIDO --- */}
-        <button 
-          onClick={() => setVerPedido(!verPedido)} 
-          style={{...styles.btnAgregar, background: verPedido ? "#FF9500" : "#0A84FF", color: "white", marginTop: "15px"}}
-        >
-          {verPedido ? "✕ CERRAR LISTADO" : "📋 GENERAR LISTA PARA PEDIDO"}
-        </button>
+        {/* --- FILA DE BOTONES DE ACCIÓN --- */}
+        <div style={{ display: "flex", gap: "10px", marginTop: "15px" }}>
+          <button 
+            onClick={() => setVerPedido(!verPedido)} 
+            style={{...styles.btnAgregar, background: verPedido ? "#FF9500" : "#0A84FF", color: "white", flex: 2}}
+          >
+            {verPedido ? "✕ CERRAR" : "📋 PEDIDO PROVEEDOR"}
+          </button>
+
+          <button 
+            onClick={descargarExcel} 
+            style={{...styles.btnAgregar, background: "#34C759", color: "white", flex: 1}}
+          >
+            EXCEL 📥
+          </button>
+        </div>
 
         {/* --- VISTA DE PEDIDO AGRUPADO --- */}
         {verPedido && (
@@ -148,7 +176,6 @@ export default function VentaMedias() {
           </div>
         )}
 
-        {/* El resto solo se muestra si NO estamos viendo el pedido para no marear */}
         {!verPedido && (
           <>
             <div style={{...styles.card, marginTop: "20px"}}>
@@ -267,8 +294,6 @@ const styles = {
   montoDeuda: { fontSize: "22px", fontWeight: "900", color: "#FF9500" },
   fichaDetalle: { background: "#161616", padding: "15px", borderRadius: "0 0 15px 15px", border: "1px solid #222", borderTop: "none", marginBottom: "10px" },
   ticketItem: { display: "flex", justifyContent: "space-between", fontSize: "12px", marginBottom: "5px" },
-  
-  // --- ESTILOS PARA LA LISTA DE PEDIDO ---
   itemPedido: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid #333" },
   badgeCantidad: { background: "#0A84FF", color: "white", padding: "4px 10px", borderRadius: "8px", fontWeight: "bold", fontSize: "14px" }
 };
