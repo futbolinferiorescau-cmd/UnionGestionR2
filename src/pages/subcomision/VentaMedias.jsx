@@ -31,6 +31,7 @@ export default function VentaMedias() {
       try {
         const snapJ = await getDocs(query(collection(db, "JUGADORES"), orderBy("APELLIDO", "asc")));
         setJugadores(snapJ.docs.map(d => ({ id: d.id, ...d.data() })));
+        
         const snapV = await getDocs(query(collection(db, "VENTA_MEDIAS"), orderBy("fecha", "desc")));
         setVentas(snapV.docs.map(d => ({ id: d.id, ...d.data() })));
       } catch (e) { console.error("Error al cargar:", e); }
@@ -38,17 +39,20 @@ export default function VentaMedias() {
     fetchData();
   }, []);
 
-  // --- 📥 FUNCIÓN PARA DESCARGAR EL EXCEL ---
+  // --- 📥 FUNCIÓN PARA DESCARGAR EL EXCEL CON COLUMNA DE TALLES ---
   const descargarExcel = () => {
     let csvContent = "data:text/csv;charset=utf-8,";
-    // Encabezados (usamos punto y coma para que Excel en español lo separe bien)
-    csvContent += "JUGADOR;PEDIDO;TOTAL;PAGADO;SALDO (DEUDA);FECHA\n";
+    // Encabezados con la nueva columna TALLES
+    csvContent += "JUGADOR;PEDIDO;TALLES;TOTAL;PAGADO;SALDO (DEUDA);FECHA\n";
 
     ventas.forEach(v => {
       const detalle = v.items?.map(it => `${it.cantidad}x ${it.tipo}`).join(" - ");
+      // Nueva lógica para extraer los talles del pedido
+      const tallesFila = v.items?.map(it => it.talle).join(" - ");
       const fecha = v.fecha?.toDate ? v.fecha.toDate().toLocaleDateString() : "Hoy";
-      // Limpiamos comas por las dudas para no romper el formato
-      const fila = `${v.nombre};${detalle};${v.total};${v.pagado};${v.saldo};${fecha}\n`;
+      
+      // Agregamos tallesFila a la cadena de texto
+      const fila = `${v.nombre};${detalle};${tallesFila};${v.total};${v.pagado};${v.saldo};${fecha}\n`;
       csvContent += fila;
     });
 
@@ -61,7 +65,6 @@ export default function VentaMedias() {
     document.body.removeChild(link);
   };
 
-  // --- 📝 LÓGICA PARA AGRUPAR EL PEDIDO ---
   const generarResumenPedido = () => {
     const resumen = {};
     ventas.forEach(venta => {
@@ -78,7 +81,6 @@ export default function VentaMedias() {
 
   const listaPedido = generarResumenPedido();
 
-  // --- 💰 CÁLCULOS DE BALANCE ---
   const totalPagadoGlobal = ventas.reduce((acc, v) => acc + (Number(v.pagado) || 0), 0);
   const totalDeudaGlobal = ventas.reduce((acc, v) => acc + (Number(v.saldo) || 0), 0);
   const totalCompraActual = carrito.reduce((acc, item) => acc + item.subtotal, 0);
@@ -143,24 +145,15 @@ export default function VentaMedias() {
           </div>
         </div>
 
-        {/* --- FILA DE BOTONES DE ACCIÓN --- */}
         <div style={{ display: "flex", gap: "10px", marginTop: "15px" }}>
-          <button 
-            onClick={() => setVerPedido(!verPedido)} 
-            style={{...styles.btnAgregar, background: verPedido ? "#FF9500" : "#0A84FF", color: "white", flex: 2}}
-          >
+          <button onClick={() => setVerPedido(!verPedido)} style={{...styles.btnAgregar, background: verPedido ? "#FF9500" : "#0A84FF", color: "white", flex: 2}}>
             {verPedido ? "✕ CERRAR" : "📋 PEDIDO PROVEEDOR"}
           </button>
-
-          <button 
-            onClick={descargarExcel} 
-            style={{...styles.btnAgregar, background: "#34C759", color: "white", flex: 1}}
-          >
+          <button onClick={descargarExcel} style={{...styles.btnAgregar, background: "#34C759", color: "white", flex: 1}}>
             EXCEL 📥
           </button>
         </div>
 
-        {/* --- VISTA DE PEDIDO AGRUPADO --- */}
         {verPedido && (
           <div style={{...styles.card, marginTop: "20px", border: "2px solid #0A84FF"}}>
             <h3 style={{fontSize: "14px", textAlign: "center", color: "#0A84FF", marginBottom: "15px"}}>RESUMEN DE MERCADERÍA</h3>
