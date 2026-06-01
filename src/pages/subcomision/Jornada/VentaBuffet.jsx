@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { db } from "../../../firebase";
-import { collection, onSnapshot, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, onSnapshot, addDoc } from "firebase/firestore"; 
 import { useNavigate } from "react-router-dom"; 
 import Navbar from "../../../components/Navbar";
 import BottomNav from "../../../components/BottomNav";
@@ -24,10 +24,10 @@ export default function VentaBuffet() {
   const [pedido, setPedido] = useState({});
   const [total, setTotal] = useState(0);
   const [responsable, setResponsable] = useState("");
-  const [categoria, setCategoria] = useState("");
+  // --- ⚽ CAMBIAMOS CATEGORIA POR RIVAL ---
+  const [rival, setRival] = useState("");
+  const [fechaManual, setFechaManual] = useState(new Date().toISOString().split('T')[0]);
   const navigate = useNavigate();
-
-  const fechaHoy = new Date().toLocaleDateString('es-AR');
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "productos_buffet"), (snap) => {
@@ -49,19 +49,22 @@ export default function VentaBuffet() {
 
   const finalizarVenta = async () => {
     if (total === 0) return alert("El pedido está vacío");
-    if (!responsable || !categoria) return alert("Completá Responsable y Categoría");
+    if (!responsable || !rival) return alert("Completá Responsable y el Equipo Rival");
 
     const detalle = productos
       .filter(p => pedido[p.id] > 0)
       .map(p => ({ nombre: p.nombre, cantidad: pedido[p.id], subtotal: p.precio * pedido[p.id] }));
 
     try {
+      const [anio, mes, dia] = fechaManual.split("-");
+      const fechaFinal = new Date(Number(anio), Number(mes) - 1, Number(dia), 12, 0, 0);
+
       await addDoc(collection(db, "ventas_buffet_diarias"), {
         items: detalle,
         total,
         responsable: responsable.toUpperCase(),
-        categoria: categoria.toUpperCase(),
-        fecha: serverTimestamp()
+        rival: rival.toUpperCase(), // Guardamos el nombre del rival en la base de datos
+        fecha: fechaFinal 
       });
       setPedido({}); setTotal(0);
       alert("✅ Venta Guardada");
@@ -76,10 +79,18 @@ export default function VentaBuffet() {
           <div style={styles.topSection}>
               <img src="/images/unionas_escudo.png" alt="Escudo" style={styles.escudoCentro} />
               <h1 style={styles.jornadaTitle}>BUFFET</h1>
-              <span style={styles.fechaTxt}>{fechaHoy}</span>
           </div>
+          
           <div style={styles.inputsRow}>
-              <input style={styles.inputFino} placeholder="CATEGORÍA" value={categoria} onChange={(e) => setCategoria(e.target.value)} />
+              {/* --- 📅 SELECTOR DE FECHA CON LETRA MÁS GRANDE --- */}
+              <input 
+                type="date" 
+                style={styles.inputFechaGrande} 
+                value={fechaManual} 
+                onChange={(e) => setFechaManual(e.target.value)} 
+              />
+              {/* --- ⚽ NUEVO INPUT PARA EL EQUIPO RIVAL --- */}
+              <input style={styles.inputFino} placeholder="RIVAL / EQUIPO" value={rival} onChange={(e) => setRival(e.target.value)} />
               <input style={styles.inputFino} placeholder="RESPONSABLE" value={responsable} onChange={(e) => setResponsable(e.target.value)} />
           </div>
           <div style={styles.lineaBlanca}></div>
@@ -128,7 +139,6 @@ export default function VentaBuffet() {
             </div>
           </div>
           
-          {/* AQUÍ CAMBIAMOS LA RUTA AL DETALLE ESPECÍFICO DEL BUFFET */}
           <button onClick={() => navigate("/subcomision/jornada/buffet-detalle")} style={styles.btnVerHistorial}>
             📄 VER DETALLE DE VENTAS
           </button>
@@ -145,9 +155,10 @@ const styles = {
   topSection: { display: "flex", flexDirection: "column", alignItems: "center", gap: "5px" },
   escudoCentro: { width: "45px", height: "45px", marginBottom: "5px" },
   jornadaTitle: { fontSize: "28px", fontWeight: "900", color: "#fff", margin: 0, letterSpacing: "2px" },
-  fechaTxt: { fontSize: "14px", color: "#888", fontWeight: "bold" },
-  inputsRow: { display: "flex", gap: "10px", marginTop: "15px" },
+  inputsRow: { display: "flex", gap: "10px", marginTop: "15px", alignItems: "center" },
   inputFino: { flex: 1, background: "#111", border: "1px solid #333", padding: "12px", borderRadius: "10px", color: "#fff", fontSize: "13px", textAlign: "center" },
+  // --- ESTILO NUEVO PARA LA FECHA GRANDE ---
+  inputFechaGrande: { flex: 1, background: "#111", border: "1px solid #333", padding: "10px", borderRadius: "10px", color: "#fff", fontSize: "16px", fontWeight: "bold", textAlign: "center", colorScheme: "dark" },
   lineaBlanca: { height: "4px", background: "#fff", width: "100%", marginTop: "15px", borderRadius: "2px" },
   layout: { display: "flex", flexWrap: "wrap", gap: "20px", padding: "20px", maxWidth: "1200px", margin: "0 auto" },
   listaSeccion: { flex: "1 1 500px" },
