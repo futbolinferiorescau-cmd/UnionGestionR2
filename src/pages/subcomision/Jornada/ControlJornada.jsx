@@ -7,10 +7,9 @@ import {
   query, 
   where, 
   getDocs, 
-  deleteDoc, // <--- Agregado para limpiar
-  doc,       // <--- Agregado para limpiar
-  serverTimestamp 
-} from "firebase/firestore";
+  deleteDoc, 
+  doc 
+} from "firebase/firestore"; // Sacamos serverTimestamp
 import { useNavigate } from "react-router-dom";
 import Navbar from "../../../components/Navbar";
 import BottomNav from "../../../components/BottomNav";
@@ -22,18 +21,23 @@ export default function ControlJornada() {
   const [monto, setMonto] = useState("");
   const [categoria, setCategoria] = useState("ENTRADAS");
   const [totalBuffetReal, setTotalBuffetReal] = useState(0);
-  const [cargando, setCargando] = useState(false); // <--- Para evitar doble clic
+  const [cargando, setCargando] = useState(false); 
+
+  // --- 📅 ESTADO PARA LA FECHA MANUAL (Por defecto, hoy) ---
+  const [fechaManual, setFechaManual] = useState(new Date().toISOString().split('T')[0]);
 
   const categorias = ["ENTRADAS", "GASTO ÁRBITROS", "COMPRA MERCADERÍA", "HIELO / CARBÓN", "OTROS GASTOS"];
 
-  // 1. ESCUCHAR VENTAS DEL BUFFET EN TIEMPO REAL
+  // 1. ESCUCHAR VENTAS DEL BUFFET FILTRADAS POR LA FECHA SELECCIONADA
   useEffect(() => {
-    const hoy = new Date();
-    hoy.setHours(0, 0, 0, 0);
+    const [anio, mes, dia] = fechaManual.split("-");
+    const inicioDia = new Date(Number(anio), Number(mes) - 1, Number(dia), 0, 0, 0);
+    const finDia = new Date(Number(anio), Number(mes) - 1, Number(dia), 23, 59, 59);
 
     const q = query(
       collection(db, "ventas_buffet_diarias"),
-      where("fecha", ">=", hoy)
+      where("fecha", ">=", inicioDia),
+      where("fecha", "<=", finDia)
     );
 
     const unsub = onSnapshot(q, (snap) => {
@@ -45,7 +49,7 @@ export default function ControlJornada() {
     });
 
     return () => unsub();
-  }, []);
+  }, [fechaManual]); // Se vuelve a ejecutar de una si cambiás la fecha en el calendario
 
   const agregarMovimiento = () => {
     if (!monto || monto <= 0) return alert("Ingresá un monto válido");
@@ -59,23 +63,26 @@ export default function ControlJornada() {
   const totalEgresos = movimientos.reduce((acc, mov) => mov.tipo === "EGRESO" ? acc + mov.monto : acc, 0);
   const balanceFinal = (totalIngresosManuales + totalBuffetReal) - totalEgresos;
 
-  // 2. FUNCIÓN DE CIERRE DE JORNADA (CON LIMPIEZA PROFUNDA)
+  // 2. FUNCIÓN DE CIERRE DE JORNADA (CON LIMPIEZA DEL DÍA SELECCIONADO)
   const finalizarJornada = async () => {
     if (!responsable) return alert("Por favor, ingresá el nombre del Responsable");
     if (cargando) return;
 
-    const confirmar = window.confirm("¿Cerrar jornada? Se archivará el total y el contador de Buffet volverá a $0.");
+    const confirmar = window.confirm(`¿Cerrar jornada? Se archivará el total y el contador de Buffet de la fecha seleccionada volverá a $0.`);
 
     if (confirmar) {
       setCargando(true);
       try {
-        const hoy = new Date();
-        hoy.setHours(0, 0, 0, 0);
+        const [anio, mes, dia] = fechaManual.split("-");
+        const inicioDia = new Date(Number(anio), Number(mes) - 1, Number(dia), 0, 0, 0);
+        const finDia = new Date(Number(anio), Number(mes) - 1, Number(dia), 23, 59, 59);
+        const fechaFinal = new Date(Number(anio), Number(mes) - 1, Number(dia), 12, 0, 0);
         
-        // Buscamos todas las ventas de hoy para el resumen y para borrarlas después
+        // Buscamos todas las ventas del día seleccionado para el resumen y borrar
         const ventasSnap = await getDocs(query(
           collection(db, "ventas_buffet_diarias"),
-          where("fecha", ">=", hoy)
+          where("fecha", ">=", inicioDia),
+          where("fecha", "<=", finDia)
         ));
 
         const resumenProductos = {};
@@ -89,22 +96,22 @@ export default function ControlJornada() {
           });
         });
 
-        // A. Guardamos el registro oficial en el Historial
+        // A. Guardamos el registro oficial en el Historial con la fecha manual
         await addDoc(collection(db, "jornadas_registros"), {
           responsable: responsable.toUpperCase(),
           movimientos,
           recaudadoBuffet: totalBuffetReal,
           productosVendidos: resumenProductos, 
           balanceFinal: balanceFinal,
-          fecha: serverTimestamp(),
-          fechaTexto: new Date().toLocaleDateString('es-AR')
+          fecha: fechaFinal, // Guardamos la fecha elegida a mano
+          fechaTexto: `${dia}/${mes}/${anio}` // Texto exacto
         });
 
-        // B. LIMPIEZA: Borramos los tickets individuales para reiniciar el contador
+        // B. LIMPIEZA: Borramos los tickets individuales de este día únicamente
         const borrarPromesas = idsVentas.map(id => deleteDoc(doc(db, "ventas_buffet_diarias", id)));
         await Promise.all(borrarPromesas);
 
-        alert("✅ Jornada cerrada y contador reiniciado.");
+        alert("✅ Jornada cerrada y contador de la fecha reiniciado.");
         setMovimientos([]);
         setResponsable("");
         navigate("/subcomision/jornada");
@@ -124,17 +131,26 @@ export default function ControlJornada() {
       <div style={styles.container}>
         <h2 style={styles.titulo}>BALANCE DE JORNADA 📊</h2>
         
-        <input 
-          placeholder="RESPONSABLE DE FECHA" 
-          value={responsable} 
-          onChange={e => setResponsable(e.target.value)} 
-          style={styles.inputFull} 
-        />
+        {/* --- FILA DE ENTRADA: FECHA GRANDE + RESPONSABLE --- */}
+        <div style={styles.inputsRow}>
+          <input 
+            type="date" 
+            style={styles.inputFechaGrande} 
+            value={fechaManual} 
+            onChange={(e) => setFechaManual(e.target.value)} 
+          />
+          <input 
+            placeholder="RESPONSABLE DE FECHA" 
+            value={responsable} 
+            onChange={e => setResponsable(e.target.value)} 
+            style={styles.inputFino} 
+          />
+        </div>
 
         <div style={styles.boxAuto}>
             <div style={{display: "flex", flexDirection: "column"}}>
                 <span style={styles.labelAuto}>💰 RECAUDADO BUFFET</span>
-                <small style={{color: "#33b5e5", fontSize: "9px"}}>Suma automática de hoy</small>
+                <small style={{color: "#33b5e5", fontSize: "9px"}}>Suma del día seleccionado</small>
             </div>
             <span style={styles.montoAuto}>${totalBuffetReal}</span>
         </div>
@@ -163,7 +179,7 @@ export default function ControlJornada() {
 
         <div style={styles.boxBalance}>
           <span style={{fontSize: "12px", color: "#888", fontWeight: "bold"}}>EFECTIVO TOTAL:</span>
-          <span style={{color: balanceFinal >= 0 ? "#33b5e5" : "#ef4444"}}>${balanceFinal}</span>
+          <span style={{color: balanceFinal >= 0 ? "#33b5e5" : "#ef4444", fontSize: "28px", fontWeight: "900"}}>${balanceFinal}</span>
         </div>
 
         <button 
@@ -183,7 +199,9 @@ const styles = {
   page: { background: "#000", minHeight: "100vh", color: "#fff", paddingBottom: "100px" },
   container: { padding: "16px", maxWidth: "600px", margin: "0 auto" },
   titulo: { color: "#33b5e5", fontSize: "18px", textAlign: "center", fontWeight: "900", marginBottom: "15px" },
-  inputFull: { width: "100%", background: "#111", border: "1px solid #333", padding: "14px", color: "#fff", borderRadius: "10px", marginBottom: "15px", outline: "none" },
+  inputsRow: { display: "flex", gap: "10px", marginBottom: "15px", alignItems: "center" },
+  inputFino: { flex: 1, background: "#111", border: "1px solid #333", padding: "12px", borderRadius: "10px", color: "#fff", fontSize: "13px", textAlign: "center", outline: "none" },
+  inputFechaGrande: { flex: 1, background: "#111", border: "1px solid #333", padding: "10px", borderRadius: "10px", color: "#fff", fontSize: "16px", fontWeight: "bold", textAlign: "center", colorScheme: "dark", outline: "none" },
   boxAuto: { background: "rgba(51, 181, 229, 0.05)", border: "1px solid #33b5e5", padding: "18px", borderRadius: "15px", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" },
   labelAuto: { fontSize: "12px", fontWeight: "900", color: "#33b5e5" },
   montoAuto: { fontSize: "22px", fontWeight: "900", color: "#fff" },
@@ -194,7 +212,7 @@ const styles = {
   planilla: { background: "#111", borderRadius: "15px", padding: "15px", minHeight: "100px", border: "1px solid #222" },
   headerPlanilla: { fontSize: "10px", color: "#444", fontWeight: "900", marginBottom: "10px", borderBottom: "1px solid #222", paddingBottom: "5px" },
   fila: { display: "flex", justifyContent: "space-between", padding: "12px 0", borderBottom: "1px solid #222", alignItems: "center" },
-  boxBalance: { display: "flex", flexDirection: "column", alignItems: "center", padding: "30px 0", gap: "5px" },
-  btnFinalizar: { width: "100%", background: "#fff", color: "#000", border: "none", padding: "18px", borderRadius: "12px", fontWeight: "900", fontSize: "14px" },
+  boxBalance: { display: "flex", flexDirection: "column", alignItems: "center", padding: "20px 0", gap: "5px" },
+  btnFinalizar: { width: "100%", background: "#fff", color: "#000", border: "none", padding: "18px", borderRadius: "12px", fontWeight: "900", fontSize: "14px", cursor: "pointer" },
   vacio: { textAlign: "center", padding: "20px", color: "#333", fontSize: "12px" }
 };
